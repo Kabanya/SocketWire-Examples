@@ -1,0 +1,7 @@
+.vscode
+.cache
+**.DS_Store
+**build**
+/out
+CMakeLists.txt.user
+compile_commands.json

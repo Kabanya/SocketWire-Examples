@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.28)
+
+add_executable(minimal_server MinimalServer.cpp)
+add_executable(minimal_client MinimalClient.cpp)
+add_executable(test_client_socket ClientTestSocket.cpp ClientTestSocket.h)
+add_executable(test_server_socket ServerTestSocket.cpp ServerTestSocket.h)
+
+target_link_libraries(minimal_server PRIVATE SocketWire)
+target_link_libraries(minimal_client PRIVATE SocketWire)
+target_link_libraries(test_client_socket PRIVATE SocketWire)
+target_link_libraries(test_server_socket PRIVATE SocketWire)
