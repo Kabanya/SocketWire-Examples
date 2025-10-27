@@ -3,24 +3,25 @@
 #include <thread>
 #include <chrono>
 
-using namespace SocketWire;
+using namespace socketwire; //NOLINT
 
-class PrintHandler : public EventHandler 
+class PrintHandler : public EventHandler
 {
 public:
-  void OnDataReceived(const RecvData& recvData) override {
-    std::cout << "Received: " << std::string(recvData.data, recvData.bytesRead) << std::endl;
+  void onDataReceived(const RecvData& recv_data) override
+  {
+    std::cout << "Received: " << std::string(recv_data.data, recv_data.bytesRead) << std::endl;
   }
-  void OnSocketError(int) override {}
+  void onSocketError(int) override {}
 };
 
-int main() 
+int main()
 {
   Socket client;
   PrintHandler handler;
-  client.SetEventHandler(&handler);
+  client.setEventHandler(&handler);
 
-  client.Bind(nullptr, "0");
+  client.bind(nullptr, "0");
 
   sockaddr_in dest{};
   dest.sin_family = AF_INET;
@@ -28,11 +29,11 @@ int main()
   dest.sin_port = htons(40404);
 
   std::string msg = "Hello from use case of Socket class!";
-  client.SendTo(msg.c_str(), msg.size(), dest);
+  client.sendTo(msg.c_str(), msg.size(), dest);
 
-  for (int i = 0; i < 10; ++i) 
+  for (int i = 0; i < 10; ++i)
   {
-    client.PollReceive();
+    client.pollReceive();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
   return 0;

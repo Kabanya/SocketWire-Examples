@@ -2,33 +2,33 @@
 #include <iostream>
 #include <unistd.h>
 
-using namespace SocketWire;
+using namespace socketwire; //NOLINT
 
-class PrintHandler : public EventHandler 
+class PrintHandler : public EventHandler
 {
 public:
-  void OnDataReceived(const RecvData& recvData) override 
+  void onDataReceived(const RecvData& recv_data) override
   {
-    std::cout << "Received: " << std::string(recvData.data, recvData.bytesRead) << std::endl;
+    std::cout << "Received: " << std::string(recv_data.data, recv_data.bytesRead) << std::endl;
   }
-  void OnSocketError(int) override {}
+  void onSocketError(int) override {}
 };
 
-int main() 
+int main()
 {
   Socket server;
   PrintHandler handler;
-  server.SetEventHandler(&handler);
+  server.setEventHandler(&handler);
 
-  if (server.Bind(nullptr, "40404") != 0) 
+  if (server.bind(nullptr, "40404") != 0)
   {
     std::cout << "Bind failed\n";
     return 1;
   }
   std::cout << "Server listening on port 40404\n";
-  while (true) 
+  while (true)
   {
-    server.PollReceive();
+    server.pollReceive();
     usleep(10000);
   }
 }

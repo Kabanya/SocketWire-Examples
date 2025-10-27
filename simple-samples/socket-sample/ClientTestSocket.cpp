@@ -7,7 +7,6 @@
 #include <unistd.h>
 #endif
 
-#include <cstring>
 #include <cstdio>
 #include <iostream>
 #include <thread>
@@ -16,31 +15,34 @@
 #include "ClientTestSocket.h"
 #include "BitStream.h"
 
-using namespace SocketWire;
+using namespace socketwire; //NOLINT
 
 Socket clientSocket;
 sockaddr_in serverAddr;
 
 
-class ClientHandler : public EventHandler 
+class ClientHandler : public EventHandler
 {
 public:
-  void OnDataReceived(const RecvData& recvData) override {
-    if (recvData.bytesRead == 0) return;
-    
-    BitStream stream(reinterpret_cast<const uint8_t*>(recvData.data), recvData.bytesRead);
+  void onDataReceived(const RecvData& recv_data) override
+  {
+    if (recv_data.bytesRead == 0)
+      return;
+
+    BitStream stream(reinterpret_cast<const uint8_t*>(recv_data.data), recv_data.bytesRead);
     std::string message;
-    stream.Read(message);
+    stream.read(message);
     std::cout << "\r" << message << "\n>";
     std::cout.flush();
   }
-  void OnSocketError(int) override {}
+  void onSocketError(int) override {}
 };
 
-void client_receive_loop(int sfd)
+void client_receive_loop()
 {
-  while (true) {
-    clientSocket.PollReceive();
+  while (true)
+  {
+    clientSocket.pollReceive();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
@@ -49,7 +51,7 @@ void client_receive_loop(int sfd)
 // {
 //   constexpr size_t buf_size = 1000;
 //   char buffer[buf_size];
-  
+
 //   while (true)
 //   {
 //     fd_set readSet;
@@ -64,10 +66,10 @@ void client_receive_loop(int sfd)
 //       memset(buffer, 0, buf_size);
 //       sockaddr_in sender_addr;
 //       socklen_t addr_len = sizeof(sender_addr);
-      
-//       ssize_t bytes_received = recvfrom(sfd, buffer, buf_size - 1, 0, 
+
+//       ssize_t bytes_received = recvfrom(sfd, buffer, buf_size - 1, 0,
 //                                         (struct sockaddr*)&sender_addr, &addr_len);
-      
+
 //       if (bytes_received > 0)
 //       {
 //         std::cout << "\r" << buffer << "\n>";
@@ -79,25 +81,25 @@ void client_receive_loop(int sfd)
 
 void display_help()
 {
-  std::cout << "\n-----------------Client-INFO-------------------\n" 
+  std::cout << "\n-----------------Client-INFO-------------------\n"
             << "/c [msg] - Send a message to all connected clients\n"
             << "/mathduel - Challenge someone to a math duel\n"
             << "Any other message will be sent to the server only\n"
             << "----------------Message-ownership----------------\n"
             << "SERVER: [msg] - Send a message to the server\n"
             << "CHAT (sender): [msg] - message from another user\n"
-            << "-------------------------------------------------\n\n" << std::endl;
+            << "-------------------------------------------------\n\n"
+            << std::endl;
 }
 
 
-int main(int argc, const char **argv)
+int main()
 {
-  const char *port = "2025";
-  
   ClientHandler handler;
-  clientSocket.SetEventHandler(&handler);
-  
-  if (clientSocket.Bind(nullptr, "0") != 0) {
+  clientSocket.setEventHandler(&handler);
+
+  if (clientSocket.bind(nullptr, "0") != 0)
+  {
     printf("Cannot bind socket\n");
     return 1;
   }
@@ -106,32 +108,32 @@ int main(int argc, const char **argv)
   serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   serverAddr.sin_port = htons(2025);
 
-  std::cout << "Client is using port: " << clientSocket.GetLocalPort() << std::endl;
+  std::cout << "Client is using port: " << clientSocket.getLocalPort() << std::endl;
 
   BitStream connectStream;
-  connectStream.Write(std::string("New client!"));
-  clientSocket.SendTo(connectStream.GetData(), connectStream.GetSizeBytes(), serverAddr);
+  connectStream.write(std::string("New client!"));
+  clientSocket.sendTo(connectStream.getData(), connectStream.getSizeBytes(), serverAddr);
 
-  std::thread receive_thread([]() { client_receive_loop(0); });
-  receive_thread.detach();
-  
+  std::thread receiveThread([]() { client_receive_loop(); });
+  receiveThread.detach();
+
   while (true)
   {
     std::string input;
     printf(">");
     std::getline(std::cin, input);
-    
-    if (input == "/help" || input == "/h" || input == "/?" || input == "--help") 
+
+    if (input == "/help" || input == "/h" || input == "/?" || input == "--help")
     {
       display_help();
       continue;
     }
-    
+
     if (!input.empty())
     {
       BitStream stream;
-      stream.Write(input);
-      clientSocket.SendTo(stream.GetData(), stream.GetSizeBytes(), serverAddr);
+      stream.write(input);
+      clientSocket.sendTo(stream.getData(), stream.getSizeBytes(), serverAddr);
     }
   }
   return 0;
