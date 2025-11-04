@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 
 project(socketwire LANGUAGES CXX)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin) # comment if you want have a structure in build folder
+
 # Prevent the user from polluting the root directory with build files
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
   message(
@@ -20,8 +22,8 @@ endif ()
 # No profiling in release builds, mostly because Tracy emmits warnings in that case.
 option(TRACY_ENABLE "Enable profiling" ${SOCKETWIRE_DEBUG})
 
-# Uncomment to contribute into SocketWire
-# set(CPM_socketwire_SOURCE "${PROJECT_SOURCE_DIR}/../SocketWire")
+# Uncomment to contribute into SocketWire (before that, clone SocketWire to the same folder)
+set(CPM_socketwire_SOURCE "${PROJECT_SOURCE_DIR}/../SocketWire")
 
 include("cmake/get_cpm.cmake")
 include("cmake/thirdparty.cmake")
@@ -36,4 +38,5 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(simple-samples)
+add_subdirectory(simple-examples)
+add_subdirectory(raylib-examples)
