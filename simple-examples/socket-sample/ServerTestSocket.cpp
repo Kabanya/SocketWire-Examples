@@ -1,3 +1,4 @@
+#include "bit_stream.hpp"
 #if defined(__APPLE__) || defined(__linux__)
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -15,8 +16,7 @@
 #include <random>
 
 #include "ServerTestSocket.h"
-#include "NetSocket.h"
-#include "BitStream.h"
+#include "net_socket.hpp"
 
 using namespace socketwire; //NOLINT
 

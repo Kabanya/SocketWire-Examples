@@ -15,7 +15,6 @@ CPMAddPackage(
   GIT_TAG v0.12.2
   OPTIONS
     "TRACY_ON_DEMAND ON"
-    "TRACY_NO_VULKAN ON"
 )
 
 # core library here - SocketWire

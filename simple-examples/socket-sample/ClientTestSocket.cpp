@@ -11,9 +11,9 @@
 #include <iostream>
 #include <thread>
 
-#include "NetSocket.h"
+#include "net_socket.hpp"
 #include "ClientTestSocket.h"
-#include "BitStream.h"
+#include "bit_stream.hpp"
 
 using namespace socketwire; //NOLINT
 

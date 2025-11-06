@@ -1,4 +1,4 @@
-#include "BitStream.h"
+#include "bit_stream.hpp"
 #include <iostream>
 
 
