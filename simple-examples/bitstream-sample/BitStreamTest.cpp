@@ -4,7 +4,7 @@
 
 int main()
 {
-  BitStream stream;
+  socketwire::BitStream stream;
 
   std::cout << "Test 1: Integer Types: \n" << std::endl;
   int8_t val1 = -128;

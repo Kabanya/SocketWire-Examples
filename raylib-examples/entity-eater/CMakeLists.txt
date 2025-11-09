@@ -10,11 +10,6 @@ set(ENTITY_EATER_SERVER
   protocol.cpp
   )
 
-# set(W4_BITSTREAM_SOURCES
-#   bitstream.h
-#   bitstream.cpp
-#   )
-
 include_directories("../3rdParty/enet/include")
 
 if(MSVC)
@@ -32,14 +27,6 @@ target_link_libraries(entity-eater-server PUBLIC enet)
 
 target_link_libraries(entity-eater-client PRIVATE SocketWire)
 target_link_libraries(entity-eater-server PRIVATE SocketWire)
-# target_link_libraries(test_client_socket PRIVATE SocketWire)
-# target_link_libraries(test_server_socket PRIVATE SocketWire)
-
-# add_executable(w4_bitstream ${W4_BITSTREAM_SOURCES})
-# target_link_libraries(w4_bitstream PUBLIC project_options project_warnings)
-
-# add_library(w4_bitstream ${W4_BITSTREAM_SOURCES})
-# target_link_libraries(w4_bitstream PUBLIC project_options project_warnings)
 
 if(MSVC)
   target_link_libraries(entity-eater-client PUBLIC ws2_32.lib winmm.lib)

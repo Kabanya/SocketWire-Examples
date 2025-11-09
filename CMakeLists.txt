@@ -39,5 +39,5 @@ include("cmake/get_cpm.cmake")
 include("cmake/thirdparty.cmake")
 include("cmake/get_version.cmake")
 
-add_subdirectory(simple-examples)
+# add_subdirectory(simple-examples)
 add_subdirectory(raylib-examples)
