@@ -1,26 +1,52 @@
-#include "net_socket.hpp"
+#include "i_socket.hpp"
 #include <iostream>
 #include <unistd.h>
+#include <memory>
+#include <netinet/in.h>
 
 using namespace socketwire; //NOLINT
 
-class PrintHandler : public EventHandler
+class PrintHandler : public ISocketEventHandler
 {
 public:
-  void onDataReceived(const RecvData& recv_data) override
+  void onDataReceived([[maybe_unused]]const SocketAddress& from, [[maybe_unused]]std::uint16_t fromPort,
+                      const void* data, std::size_t bytesRead) override
   {
-    std::cout << "Received: " << std::string(recv_data.data, recv_data.bytesRead) << std::endl;
+    std::cout << "Received: " << std::string(static_cast<const char*>(data), bytesRead) << std::endl;
   }
-  void onSocketError(int) override {}
+  void onSocketError(SocketError errorCode) override
+  {
+    std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
+  }
 };
+
+// Forward declaration from posix_udp_socket.cpp
+namespace socketwire {
+extern void register_posix_socket_factory();
+}
 
 int main()
 {
-  Socket server;
-  PrintHandler handler;
-  server.setEventHandler(&handler);
+  socketwire::register_posix_socket_factory();
 
-  if (server.bind(nullptr, "40404") != 0)
+  auto factory = SocketFactoryRegistry::getFactory();
+  if (factory == nullptr)
+  {
+    std::cout << "Socket factory not initialized\n";
+    return 1;
+  }
+
+  auto server = factory->createUDPSocket(SocketConfig{});
+  if (!server)
+  {
+    std::cout << "Cannot create socket\n";
+    return 1;
+  }
+
+  PrintHandler handler;
+
+  SocketAddress bindAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  if (server->bind(bindAddr, 40404) != SocketError::None)
   {
     std::cout << "Bind failed\n";
     return 1;
@@ -28,7 +54,7 @@ int main()
   std::cout << "Server listening on port 40404\n";
   while (true)
   {
-    server.pollReceive();
+    server->poll(&handler);
     usleep(10000);
   }
 }

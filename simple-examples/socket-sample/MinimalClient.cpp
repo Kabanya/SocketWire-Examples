@@ -1,39 +1,63 @@
-#include "net_socket.hpp"
+#include "i_socket.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <memory>
+#include <netinet/in.h>
 
 using namespace socketwire; //NOLINT
 
-class PrintHandler : public EventHandler
+// Forward declaration from posix_udp_socket.cpp
+namespace socketwire {
+extern void register_posix_socket_factory();
+}
+
+class PrintHandler : public ISocketEventHandler
 {
 public:
-  void onDataReceived(const RecvData& recv_data) override
+  void onDataReceived([[maybe_unused]]const SocketAddress& from, [[maybe_unused]]std::uint16_t fromPort,
+                      const void* data, std::size_t bytesRead) override
   {
-    std::cout << "Received: " << std::string(recv_data.data, recv_data.bytesRead) << std::endl;
+    std::cout << "Received: " << std::string(static_cast<const char*>(data), bytesRead) << std::endl;
   }
-  void onSocketError(int) override {}
+  void onSocketError(SocketError errorCode) override
+  {
+    std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
+  }
 };
 
 int main()
 {
-  Socket client;
+  // Initialize socket factory
+  register_posix_socket_factory();
+
+  auto factory = SocketFactoryRegistry::getFactory();
+  if (factory == nullptr)
+  {
+    std::cout << "Socket factory not initialized\n";
+    return 1;
+  }
+
+  auto client = factory->createUDPSocket(SocketConfig{});
+  if (!client)
+  {
+    std::cout << "Cannot create socket\n";
+    return 1;
+  }
+
   PrintHandler handler;
-  client.setEventHandler(&handler);
 
-  client.bind(nullptr, "0");
+  SocketAddress bindAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  client->bind(bindAddr, 0);
 
-  sockaddr_in dest{};
-  dest.sin_family = AF_INET;
-  dest.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  dest.sin_port = htons(40404);
+  SocketAddress dest = SocketAddress::fromIPv4(INADDR_LOOPBACK);
 
   std::string msg = "Hello from use case of Socket class!";
-  client.sendTo(msg.c_str(), msg.size(), dest);
+  client->sendTo(msg.c_str(), msg.size(), dest, 40404);
 
   for (int i = 0; i < 10; ++i)
   {
-    client.pollReceive();
+    client->poll(&handler);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
   return 0;

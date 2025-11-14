@@ -10,39 +10,52 @@
 #include <cstdio>
 #include <iostream>
 #include <thread>
+#include <memory>
 
-#include "net_socket.hpp"
+#include "i_socket.hpp"
 #include "ClientTestSocket.h"
 #include "bit_stream.hpp"
 
 using namespace socketwire; //NOLINT
 
-Socket clientSocket;
-sockaddr_in serverAddr;
+// Forward declaration from posix_udp_socket.cpp
+namespace socketwire {
+extern void register_posix_socket_factory();
+}
+
+std::unique_ptr<ISocket> clientSocket;
+SocketAddress serverAddr;
 
 
-class ClientHandler : public EventHandler
+class ClientHandler : public ISocketEventHandler
 {
 public:
-  void onDataReceived(const RecvData& recv_data) override
+  void onDataReceived([[maybe_unused]]const SocketAddress& from, [[maybe_unused]]std::uint16_t fromPort, 
+                      const void* data, std::size_t bytesRead) override
   {
-    if (recv_data.bytesRead == 0)
+    if (bytesRead == 0)
       return;
 
-    BitStream stream(reinterpret_cast<const uint8_t*>(recv_data.data), recv_data.bytesRead);
+    BitStream stream(reinterpret_cast<const uint8_t*>(data), bytesRead);
     std::string message;
     stream.read(message);
     std::cout << "\r" << message << "\n>";
     std::cout.flush();
   }
-  void onSocketError(int) override {}
+  void onSocketError(SocketError errorCode) override 
+  {
+    std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
+  }
 };
 
-void client_receive_loop()
+void client_receive_loop(ClientHandler& handler)
 {
   while (true)
   {
-    clientSocket.pollReceive();
+    if (clientSocket)
+    {
+      clientSocket->poll(&handler);
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
@@ -95,26 +108,48 @@ void display_help()
 
 int main()
 {
-  ClientHandler handler;
-  clientSocket.setEventHandler(&handler);
+  // Initialize socket factory
+  socketwire::register_posix_socket_factory();
 
-  if (clientSocket.bind(nullptr, "0") != 0)
+  ClientHandler handler;
+
+  // Create socket factory and socket
+  auto factory = SocketFactoryRegistry::getFactory();
+  if (factory == nullptr)
+  {
+    printf("Socket factory not initialized\n");
+    return 1;
+  }
+
+  clientSocket = factory->createUDPSocket(SocketConfig{});
+  if (!clientSocket)
+  {
+    printf("Cannot create socket\n");
+    return 1;
+  }
+
+  SocketAddress localAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  if (clientSocket->bind(localAddr, 0) != SocketError::None)
   {
     printf("Cannot bind socket\n");
     return 1;
   }
 
-  serverAddr.sin_family = AF_INET;
-  serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  serverAddr.sin_port = htons(2025);
+  serverAddr = SocketAddress::fromIPv4(htonl(INADDR_LOOPBACK));
+  std::uint16_t serverPort = 2025;
 
-  std::cout << "Client is using port: " << clientSocket.getLocalPort() << std::endl;
+  std::cout << "Client is using port: " << clientSocket->localPort() << std::endl;
 
   BitStream connectStream;
   connectStream.write(std::string("New client!"));
-  clientSocket.sendTo(connectStream.getData(), connectStream.getSizeBytes(), serverAddr);
+  auto result = clientSocket->sendTo(connectStream.getData(), connectStream.getSizeBytes(), serverAddr, serverPort);
+  if (result.failed())
+  {
+    printf("Failed to send connect message\n");
+    return 1;
+  }
 
-  std::thread receiveThread([]() { client_receive_loop(); });
+  std::thread receiveThread([&handler]() { client_receive_loop(handler); });
   receiveThread.detach();
 
   while (true)
@@ -133,7 +168,7 @@ int main()
     {
       BitStream stream;
       stream.write(input);
-      clientSocket.sendTo(stream.getData(), stream.getSizeBytes(), serverAddr);
+      clientSocket->sendTo(stream.getData(), stream.getSizeBytes(), serverAddr, serverPort);
     }
   }
   return 0;

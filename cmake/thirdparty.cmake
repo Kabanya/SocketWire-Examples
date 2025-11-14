@@ -30,3 +30,10 @@ CPMAddPackage(
   GITHUB_REPOSITORY raysan5/raylib
   GIT_TAG 5.5
 )
+
+# Reliable UDP networking library
+CPMAddPackage(
+  NAME enet
+  GITHUB_REPOSITORY lsalzman/enet
+  GIT_TAG v1.3.18
+)

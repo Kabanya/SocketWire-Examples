@@ -7,28 +7,38 @@
 #include <netdb.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 #endif
 
 #include <cstring>
+#include <iostream>
 #include <thread>
 #include <vector>
 #include <queue>
 #include <random>
+#include <memory>
 
 #include "ServerTestSocket.h"
-#include "net_socket.hpp"
+#include "i_socket.hpp"
 
 using namespace socketwire; //NOLINT
 
-Socket serverSocket;
+namespace socketwire {
+extern void register_posix_socket_factory();
+}
+
+std::unique_ptr<ISocket> serverSocket;
 std::vector<Client> clients;
 std::queue<Client> duelQueue;
 std::vector<MathDuel> activeDuels;
 
 std::string client_to_string(const Client& client)
 {
-  return std::string(inet_ntoa(client.addr.sin_addr)) + ":" +
-    std::to_string(ntohs(client.addr.sin_port));
+  // Convert IPv4 address from host order to dotted decimal
+  uint32_t hostAddr = client.addr.ipv4.hostOrderAddress;
+  in_addr addr;
+  addr.s_addr = htonl(hostAddr);
+  return std::string(inet_ntoa(addr)) + ":" + std::to_string(client.port);
 }
 
 void msg_to_all_clients(const std::vector<Client>& clients, const std::string& message)
@@ -38,7 +48,10 @@ void msg_to_all_clients(const std::vector<Client>& clients, const std::string& m
 
   for (const Client& client : clients)
   {
-    serverSocket.sendTo(stream.getData(), stream.getSizeBytes(), client.addr);
+    if (serverSocket)
+    {
+      serverSocket->sendTo(stream.getData(), stream.getSizeBytes(), client.addr, client.port);
+    }
   }
   printf("msg to all clients: %s\n", message.c_str());
 }
@@ -47,7 +60,10 @@ void msg_to_client(const Client& client, const std::string& message)
 {
   BitStream stream;
   stream.write(message);
-  serverSocket.sendTo(stream.getData(), stream.getSizeBytes(), client.addr);
+  if (serverSocket)
+  {
+    serverSocket->sendTo(stream.getData(), stream.getSizeBytes(), client.addr, client.port);
+  }
   printf("msg to client: %s\n", message.c_str());
 }
 
@@ -149,10 +165,10 @@ bool is_in_duel(const Client& client, MathDuel** current_duel)
       continue;
 
     if (
-      (client.addr.sin_addr.s_addr == duel.challenger.addr.sin_addr.s_addr &&
-       client.addr.sin_port == duel.challenger.addr.sin_port) ||
-      (client.addr.sin_addr.s_addr == duel.opponent.addr.sin_addr.s_addr &&
-       client.addr.sin_port == duel.opponent.addr.sin_port))
+      (client.addr.ipv4.hostOrderAddress == duel.challenger.addr.ipv4.hostOrderAddress &&
+       client.port == duel.challenger.port) ||
+      (client.addr.ipv4.hostOrderAddress == duel.opponent.addr.ipv4.hostOrderAddress &&
+       client.port == duel.opponent.port))
     {
       if (current_duel != nullptr)
         *current_duel = &duel;
@@ -189,10 +205,10 @@ void mathduel(const std::string& message, const Client& current_client, std::vec
       for (const Client& client : clients)
       {
         if (
-          client.addr.sin_addr.s_addr == opponent.addr.sin_addr.s_addr &&
-          client.addr.sin_port == opponent.addr.sin_port &&
-          (client.addr.sin_addr.s_addr != current_client.addr.sin_addr.s_addr ||
-            client.addr.sin_port != current_client.addr.sin_port))
+          client.addr.ipv4.hostOrderAddress == opponent.addr.ipv4.hostOrderAddress &&
+          client.port == opponent.port &&
+          (client.addr.ipv4.hostOrderAddress != current_client.addr.ipv4.hostOrderAddress ||
+            client.port != current_client.port))
         {
           opponentExists = true;
           break;
@@ -258,28 +274,29 @@ void mathduel(const std::string& message, const Client& current_client, std::vec
   }
 }
 
-class ServerHandler : public EventHandler
+class ServerHandler : public ISocketEventHandler
 {
 public:
-  void onDataReceived(const RecvData& recv_data) override
+  void onDataReceived(const SocketAddress& from, std::uint16_t fromPort,
+                      const void* data, std::size_t bytesRead) override
   {
-    if (recv_data.bytesRead == 0)
+    if (bytesRead == 0)
       return;
 
-    BitStream stream(reinterpret_cast<const uint8_t*>(recv_data.data), recv_data.bytesRead);
+    BitStream stream(reinterpret_cast<const uint8_t*>(data), bytesRead);
     std::string message;
     stream.read(message);
 
     Client currentClient;
-    currentClient.addr = recv_data.fromAddr;
+    currentClient.addr = from;
+    currentClient.port = fromPort;
     currentClient.id = client_to_string(currentClient);
 
     bool clientExists = false;
     for (const Client& client : clients)
     {
-      if (
-        client.addr.sin_addr.s_addr == recv_data.fromAddr.sin_addr.s_addr &&
-        client.addr.sin_port == recv_data.fromAddr.sin_port)
+      if (client.addr.ipv4.hostOrderAddress == from.ipv4.hostOrderAddress &&
+          client.port == fromPort)
       {
         clientExists = true;
         currentClient = client;
@@ -311,26 +328,48 @@ public:
       printf("(%s) %s\n", currentClient.id.c_str(), message.c_str());
     }
   }
-  void onSocketError(int) override {}
+  void onSocketError(SocketError errorCode) override
+  {
+    std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
+  }
 };
 
 int main()
 {
-  const char* port = "2025";
+  // Initialize socket factory
+  socketwire::register_posix_socket_factory();
+
+  const char* port_str = "2025";
+  uint16_t port = 2025;
 
   ServerHandler handler;
-  serverSocket.setEventHandler(&handler);
 
-  if (serverSocket.bind(nullptr, port) != 0)
+  // Create socket factory and socket
+  auto factory = SocketFactoryRegistry::getFactory();
+  if (factory == nullptr)
   {
-    printf("cannot create socket\n");
+    printf("Socket factory not initialized\n");
     return 1;
   }
-  printf("listening on port %s!\n", port);
+
+  serverSocket = factory->createUDPSocket(SocketConfig{});
+  if (!serverSocket)
+  {
+    printf("Cannot create socket\n");
+    return 1;
+  }
+
+  SocketAddress bindAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  if (serverSocket->bind(bindAddr, port) != SocketError::None)
+  {
+    printf("cannot bind socket\n");
+    return 1;
+  }
+  printf("listening on port %s!\n", port_str);
 
   while (true)
   {
-    serverSocket.pollReceive();
+    serverSocket->poll(&handler);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   return 0;
