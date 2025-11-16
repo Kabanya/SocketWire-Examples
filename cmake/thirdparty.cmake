@@ -12,7 +12,7 @@ CPMAddPackage(
 # A profiler for both CPU and GPU
 CPMAddPackage(
   GITHUB_REPOSITORY wolfpld/tracy
-  GIT_TAG v0.12.2
+  GIT_TAG v0.13.0
   OPTIONS
     "TRACY_ON_DEMAND ON"
 )

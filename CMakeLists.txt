@@ -11,7 +11,7 @@ SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(socketwire LANGUAGES CXX)
 
-# uncomment if you want have a structure in build folder
+# comment if you want have a structure in build folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Prevent the user from polluting the root directory with build files

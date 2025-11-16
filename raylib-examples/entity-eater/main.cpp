@@ -1,14 +1,17 @@
 #include <algorithm> // min/max
 #include <cstdio>    // printf
-#include <enet/enet.h>
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <chrono>
+#include <memory>
 
 #include "raylib.h"
 #include "entity.h"
 #include "protocol.h"
-
+#include "i_socket.hpp"
+#include "reliable_connection.hpp"
+#include "socket_poller.hpp"
 
 static std::vector<Entity> entities;
 static std::unordered_map<uint16_t, size_t> indexMap;
@@ -19,10 +22,10 @@ static bool gameOver = false;
 static uint16_t winnerEid = INVALID_ENTITY;
 static int winnerScore = 0;
 
-void on_new_entity_packet(ENetPacket *packet)
+void on_new_entity_packet(const void* data, size_t size)
 {
   Entity newEntity;
-  deserialize_new_entity(packet, newEntity);
+  deserialize_new_entity(data, size, newEntity);
   auto itf = indexMap.find(newEntity.eid);
   if (itf != indexMap.end())
     return; // ничего не делаем если есть entity
@@ -30,9 +33,9 @@ void on_new_entity_packet(ENetPacket *packet)
   entities.push_back(newEntity);
 }
 
-void on_set_controlled_entity(ENetPacket *packet)
+void on_set_controlled_entity(const void* data, size_t size)
 {
-  deserialize_set_controlled_entity(packet, myEntity);
+  deserialize_set_controlled_entity(data, size, myEntity);
 }
 
 template<typename Callable>
@@ -43,20 +46,20 @@ static void get_entity(uint16_t eid, Callable c)
     c(entities[itf->second]);
 }
 
-void on_snapshot(ENetPacket *packet)
+void on_snapshot(const void* data, size_t size)
 {
   uint16_t eid = INVALID_ENTITY;
-  float x = 0.f; float y = 0.f; float size = 0.f;
-  deserialize_snapshot(packet, eid, x, y, size);
+  float x = 0.f; float y = 0.f; float entity_size = 0.f;
+  deserialize_snapshot(data, size, eid, x, y, entity_size);
   get_entity(eid, [&](Entity& e)
   {
     e.x = x;
     e.y = y;
-    e.size = size;
+    e.size = entity_size;
   });
 }
 
-void on_entity_devoured(ENetPacket *packet)
+void on_entity_devoured(const void* data, size_t size)
 {
   uint16_t devouredEid = INVALID_ENTITY;
   uint16_t devourerEid = INVALID_ENTITY;
@@ -64,7 +67,7 @@ void on_entity_devoured(ENetPacket *packet)
   float newX = 0.f;
   float newY = 0.f;
 
-  deserialize_entity_devoured(packet, devouredEid, devourerEid, newSize, newX, newY);
+  deserialize_entity_devoured(data, size, devouredEid, devourerEid, newSize, newX, newY);
 
   get_entity(devourerEid, [&](Entity& e)
   {
@@ -78,13 +81,12 @@ void on_entity_devoured(ENetPacket *packet)
   });
 }
 
-// Handle score update event
-void on_score_update(ENetPacket *packet)
+void on_score_update(const void* data, size_t size)
 {
   uint16_t eid = INVALID_ENTITY;
   int score = 0;
 
-  deserialize_score_update(packet, eid, score);
+  deserialize_score_update(data, size, eid, score);
 
   get_entity(eid, [&](Entity& e)
   {
@@ -92,20 +94,19 @@ void on_score_update(ENetPacket *packet)
   });
 }
 
-void on_game_time(ENetPacket *packet)
+void on_game_time(const void* data, size_t size)
 {
   int secondsRemaining = 0;
-
-  deserialize_game_time(packet, secondsRemaining);
+  deserialize_game_time(data, size, secondsRemaining);
   gameTimeRemaining = secondsRemaining;
 }
 
-void on_game_over(ENetPacket *packet)
+void on_game_over(const void* data, size_t size)
 {
   uint16_t wEid = INVALID_ENTITY;
   int wScore = 0;
 
-  deserialize_game_over(packet, wEid, wScore);
+  deserialize_game_over(data, size, wEid, wScore);
 
   gameOver = true;
   winnerEid = wEid;
@@ -119,36 +120,131 @@ bool compare_entity_scores(const Entity& a, const Entity& b)
   return a.score > b.score;
 }
 
-// int main(int argc, const char **argv)
+// Client connection handler
+class ClientHandler : public socketwire::IReliableConnectionHandler
+{
+public:
+  void onConnected() override
+  {
+    printf("Connected to server!\n");
+    connected = true;
+  }
+
+  void onDisconnected() override
+  {
+    printf("Disconnected from server\n");
+    connected = false;
+  }
+
+  void onReliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
+  {
+    processPacket(data, size);
+  }
+
+  void onUnreliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
+  {
+    processPacket(data, size);
+  }
+
+  void onTimeout() override
+  {
+    printf("Connection timeout\n");
+  }
+
+  bool isConnected() const { return connected; }
+
+private:
+  bool connected = false;
+
+  void processPacket(const void* data, std::size_t size)
+  {
+    MessageType msgType = get_packet_type(data, size);
+    
+    switch (msgType)
+    {
+    case E_SERVER_TO_CLIENT_NEW_ENTITY:
+      on_new_entity_packet(data, size);
+      printf("new entity\n");
+      break;
+    case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
+      on_set_controlled_entity(data, size);
+      printf("got controlled entity\n");
+      break;
+    case E_SERVER_TO_CLIENT_SNAPSHOT:
+      on_snapshot(data, size);
+      break;
+    case E_SERVER_TO_CLIENT_ENTITY_DEVOURED:
+      on_entity_devoured(data, size);
+      break;
+    case E_SERVER_TO_CLIENT_SCORE_UPDATE:
+      on_score_update(data, size);
+      break;
+    case E_SERVER_TO_CLIENT_GAME_TIME:
+      on_game_time(data, size);
+      break;
+    case E_SERVER_TO_CLIENT_GAME_OVER:
+      on_game_over(data, size);
+      break;
+    case E_CLIENT_TO_SERVER_JOIN:
+    case E_CLIENT_TO_SERVER_STATE:
+      // No action needed for client-to-server packets on client
+      break;
+    }
+  }
+};
+
 int main()
 {
-  if (enet_initialize() != 0)
+  // Initialize SocketWire
+  socketwire::register_posix_socket_factory();
+  auto* factory = socketwire::SocketFactoryRegistry::getFactory();
+  if (factory == nullptr)
   {
-    printf("Cannot init ENet");
+    printf("Cannot get socket factory\n");
     return 1;
   }
 
-  ENetHost *client = enet_host_create(nullptr, 1, 2, 0, 0);
-  if (client == nullptr)
+  // Create UDP socket
+  socketwire::SocketConfig cfg;
+  cfg.nonBlocking = true;
+  cfg.reuseAddress = true;
+
+  auto socket = factory->createUDPSocket(cfg);
+  if (socket == nullptr)
   {
-    printf("Cannot create ENet client\n");
+    printf("Cannot create UDP socket\n");
     return 1;
   }
 
-  ENetAddress address;
-  enet_address_set_host(&address, "127.0.0.1");
-  address.port = 10131;
-
-  ENetPeer *serverPeer = enet_host_connect(client, &address, 2, 0);
-  if (serverPeer == nullptr)
+  // Bind to any port (client)
+  socketwire::SocketAddress anyAddr = socketwire::SocketAddress::fromIPv4(0);
+  auto bindResult = socket->bind(anyAddr, 0);
+  if (bindResult != socketwire::SocketError::None)
   {
-    printf("Cannot connect to server");
+    printf("Cannot bind socket\n");
     return 1;
   }
+
+  // Create connection
+  socketwire::ReliableConnectionConfig connCfg;
+  connCfg.numChannels = 2;
+  socketwire::ReliableConnection connection(socket.get(), connCfg);
+
+  // Set up handler
+  ClientHandler handler;
+  connection.setHandler(&handler);
+
+  // Connect to server
+  socketwire::SocketAddress serverAddr = socketwire::SocketAddress::fromIPv4(0x7F000001); // 127.0.0.1
+  connection.connect(serverAddr, 10131);
+
+  // Create socket poller
+  socketwire::SocketPoller poller;
+  poller.addSocket(socket.get());
 
   int width = 800;
   int height = 600;
-  InitWindow(width, height, "w4 networked MIPT");
+  InitWindow(width, height, "Entity Eater - SocketWire");
 
   const int scrWidth = GetMonitorWidth(0);
   const int scrHeight = GetMonitorHeight(0);
@@ -165,61 +261,43 @@ int main()
   camera.rotation = 0.f;
   camera.zoom = 1.f;
 
-  SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+  SetTargetFPS(60);
 
-  [[maybe_unused]]
-  bool connected = false;
+  bool sentJoin = false;
+
   while (!WindowShouldClose())
   {
     float dt = GetFrameTime();
-    ENetEvent event;
-    while (enet_host_service(client, &event, 0) > 0)
+
+    // Poll socket for incoming data
+    auto events = poller.poll(0); // non-blocking
+    for (auto& ev : events)
     {
-      switch (event.type)
+      if (ev.readable)
       {
-      case ENET_EVENT_TYPE_CONNECT:
-        printf("Connection with %x:%u established\n", event.peer->address.host, event.peer->address.port);
-        send_join(serverPeer);
-        connected = true;
-        break;
-      case ENET_EVENT_TYPE_RECEIVE:
-        switch (get_packet_type(event.packet))
+        socketwire::SocketAddress fromAddr;
+        std::uint16_t fromPort = 0;
+        char buffer[2048];
+        
+        auto result = socket->receive(buffer, sizeof(buffer), fromAddr, fromPort);
+        if (result.succeeded() && result.bytes > 0)
         {
-        case E_SERVER_TO_CLIENT_NEW_ENTITY:
-          on_new_entity_packet(event.packet);
-          printf("new it\n");
-          break;
-        case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
-          on_set_controlled_entity(event.packet);
-          printf("got it\n");
-          break;
-        case E_SERVER_TO_CLIENT_SNAPSHOT:
-          on_snapshot(event.packet);
-          break;
-        case E_SERVER_TO_CLIENT_ENTITY_DEVOURED:
-          on_entity_devoured(event.packet);
-          break;
-        case E_SERVER_TO_CLIENT_SCORE_UPDATE:
-          on_score_update(event.packet);
-          break;
-        case E_SERVER_TO_CLIENT_GAME_TIME:
-          on_game_time(event.packet);
-          break;
-        case E_SERVER_TO_CLIENT_GAME_OVER:
-          on_game_over(event.packet);
-          break;
-        case E_CLIENT_TO_SERVER_JOIN:
-          // No action needed for client-to-server packets on client
-          break;
-        case E_CLIENT_TO_SERVER_STATE:
-          // No action needed for client-to-server packets on client
-          break;
-        };
-        break;
-      default:
-        break;
-      };
+          connection.processPacket(buffer, static_cast<size_t>(result.bytes), fromAddr, fromPort);
+        }
+      }
     }
+
+    // Update connection (handles retries, timeouts, etc.)
+    connection.update();
+
+    // Send join when connected
+    if (connection.isConnected() && !sentJoin)
+    {
+      send_join(&connection);
+      sentJoin = true;
+    }
+
+    // Handle player input
     if (myEntity != INVALID_ENTITY)
     {
       bool left = IsKeyDown(KEY_LEFT);
@@ -231,13 +309,13 @@ int main()
         e.x += ((left ? -dt : 0.f) + (right ? +dt : 0.f)) * 100.f;
         e.y += ((up ? -dt : 0.f) + (down ? +dt : 0.f)) * 100.f;
 
-        send_entity_state(serverPeer, myEntity, e.x, e.y);
+        send_entity_state(&connection, myEntity, e.x, e.y);
         camera.target.x = e.x;
         camera.target.y = e.y;
       });
     }
 
-
+    // Render
     BeginDrawing();
       ClearBackground(Color{40, 40, 40, 255});
       BeginMode2D(camera);
@@ -282,7 +360,6 @@ int main()
         const Entity& e = sortedEntities[i];
         char playerText[100];
         const char* playerType = e.serverControlled ? "AI" : "Player";
-        // Green of current player, white for others
         Color textColor = (e.eid == myEntity) ? GREEN : WHITE;
 
         sprintf(playerText, "%d. %s %d - Score: %d",

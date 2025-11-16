@@ -1,16 +1,16 @@
 #include "protocol.h"
 #include "bit_stream.hpp"
+#include "reliable_connection.hpp"
 
-void send_join(ENetPeer *peer)
+void send_join(socketwire::ReliableConnection* connection)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_CLIENT_TO_SERVER_JOIN);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void send_new_entity(ENetPeer *peer, const Entity &ent)
+void send_new_entity(socketwire::ReliableConnection* connection, const Entity &ent)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_NEW_ENTITY);
@@ -25,55 +25,52 @@ void send_new_entity(ENetPeer *peer, const Entity &ent)
   bs.write<float>(ent.size);
   bs.write<int>(ent.score);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void send_set_controlled_entity(ENetPeer *peer, uint16_t eid)
+void send_set_controlled_entity(socketwire::ReliableConnection* connection, uint16_t eid)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
   bs.write<uint16_t>(eid);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void send_entity_state(ENetPeer *peer, uint16_t eid, float x, float y)
+void send_entity_state(socketwire::ReliableConnection* connection, uint16_t eid, float x, float y)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_CLIENT_TO_SERVER_STATE);
   bs.write<uint16_t>(eid);
-
   bs.write<float>(x);
   bs.write<float>(y);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_UNSEQUENCED);
-  enet_peer_send(peer, 1, packet);
+  connection->sendUnsequenced(1, bs);
 }
 
-void send_snapshot(ENetPeer *peer, uint16_t eid, float x, float y, float size)
+void send_snapshot(socketwire::ReliableConnection* connection, uint16_t eid, float x, float y, float size)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_SNAPSHOT);
   bs.write<uint16_t>(eid);
-
   bs.write<float>(x);
   bs.write<float>(y);
   bs.write<float>(size);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_UNSEQUENCED);
-  enet_peer_send(peer, 1, packet);
+  connection->sendUnreliable(1, bs);
 }
 
-MessageType get_packet_type(ENetPacket *packet)
+MessageType get_packet_type(const void* data, size_t size)
 {
-  return (MessageType)*packet->data;
+  if (size < 1)
+    return E_CLIENT_TO_SERVER_JOIN; // fallback
+  
+  return static_cast<MessageType>(*static_cast<const uint8_t*>(data));
 }
 
-void deserialize_new_entity(ENetPacket *packet, Entity &ent)
+void deserialize_new_entity(const void* data, size_t size, Entity &ent)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
 
@@ -88,36 +85,36 @@ void deserialize_new_entity(ENetPacket *packet, Entity &ent)
   bs.read<int>(ent.score);
 }
 
-void deserialize_set_controlled_entity(ENetPacket *packet, uint16_t &eid)
+void deserialize_set_controlled_entity(const void* data, size_t size, uint16_t &eid)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
   bs.read<uint16_t>(eid);
 }
 
-void deserialize_entity_state(ENetPacket *packet, uint16_t &eid, float &x, float &y)
+void deserialize_entity_state(const void* data, size_t size, uint16_t &eid, float &x, float &y)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
-  uint8_t type;
-  bs.read<uint8_t>(type);
-  bs.read<uint16_t>(eid);
-  bs.read<float>(x);
-  bs.read<float>(y);
-}
-
-void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, float &x, float &y, float &size)
-{
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
   bs.read<uint16_t>(eid);
   bs.read<float>(x);
   bs.read<float>(y);
-  bs.read<float>(size);
 }
 
-void send_entity_devoured(ENetPeer *peer, uint16_t devoured_eid, uint16_t devourer_eid, float new_size, float new_x, float new_y)
+void deserialize_snapshot(const void* data, size_t size, uint16_t &eid, float &x, float &y, float &size_out)
+{
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
+  uint8_t type;
+  bs.read<uint8_t>(type);
+  bs.read<uint16_t>(eid);
+  bs.read<float>(x);
+  bs.read<float>(y);
+  bs.read<float>(size_out);
+}
+
+void send_entity_devoured(socketwire::ReliableConnection* connection, uint16_t devoured_eid, uint16_t devourer_eid, float new_size, float new_x, float new_y)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_ENTITY_DEVOURED);
@@ -127,13 +124,12 @@ void send_entity_devoured(ENetPeer *peer, uint16_t devoured_eid, uint16_t devour
   bs.write<float>(new_x);
   bs.write<float>(new_y);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void deserialize_entity_devoured(ENetPacket *packet, uint16_t &devoured_eid, uint16_t &devourer_eid, float &new_size, float &new_x, float &new_y)
+void deserialize_entity_devoured(const void* data, size_t size, uint16_t &devoured_eid, uint16_t &devourer_eid, float &new_size, float &new_x, float &new_y)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
   bs.read<uint16_t>(devoured_eid);
@@ -143,59 +139,56 @@ void deserialize_entity_devoured(ENetPacket *packet, uint16_t &devoured_eid, uin
   bs.read<float>(new_y);
 }
 
-void send_score_update(ENetPeer *peer, uint16_t eid, int score)
+void send_score_update(socketwire::ReliableConnection* connection, uint16_t eid, int score)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_SCORE_UPDATE);
   bs.write<uint16_t>(eid);
   bs.write<int>(score);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void deserialize_score_update(ENetPacket *packet, uint16_t &eid, int &score)
+void deserialize_score_update(const void* data, size_t size, uint16_t &eid, int &score)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
   bs.read<uint16_t>(eid);
   bs.read<int>(score);
 }
 
-void send_game_time(ENetPeer *peer, int seconds_remaining)
+void send_game_time(socketwire::ReliableConnection* connection, int seconds_remaining)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_GAME_TIME);
   bs.write<int>(seconds_remaining);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void send_game_over(ENetPeer *peer, uint16_t winner_eid, int winner_score)
+void send_game_over(socketwire::ReliableConnection* connection, uint16_t winner_eid, int winner_score)
 {
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_SERVER_TO_CLIENT_GAME_OVER);
   bs.write<uint16_t>(winner_eid);
   bs.write<int>(winner_score);
 
-  ENetPacket *packet = enet_packet_create(bs.getData(), bs.getSizeBytes(), ENET_PACKET_FLAG_RELIABLE);
-  enet_peer_send(peer, 0, packet);
+  connection->sendReliable(0, bs);
 }
 
-void deserialize_game_over(ENetPacket *packet, uint16_t &winner_eid, int &winner_score)
+void deserialize_game_over(const void* data, size_t size, uint16_t &winner_eid, int &winner_score)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
   bs.read<uint16_t>(winner_eid);
   bs.read<int>(winner_score);
 }
 
-void deserialize_game_time(ENetPacket *packet, int &seconds_remaining)
+void deserialize_game_time(const void* data, size_t size, int &seconds_remaining)
 {
-  socketwire::BitStream bs(packet->data, packet->dataLength);
+  socketwire::BitStream bs(static_cast<const uint8_t*>(data), size);
   uint8_t type;
   bs.read<uint8_t>(type);
   bs.read<int>(seconds_remaining);

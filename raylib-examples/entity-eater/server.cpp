@@ -1,5 +1,3 @@
-#include <enet/enet.h>
-// #include <iostream>
 #include "entity.h"
 #include "protocol.h"
 #include <stdlib.h>
@@ -8,9 +6,16 @@
 #include <stdio.h>
 #include <cmath>
 #include <algorithm>
+#include <memory>
+#include <chrono>
+#include <thread>
+
+#include "i_socket.hpp"
+#include "reliable_connection.hpp"
+#include "socket_poller.hpp"
 
 static std::vector<Entity> entities;
-static std::map<uint16_t, ENetPeer*> controlledMap;
+static std::map<uint16_t, socketwire::ConnectionManager::RemoteClient*> controlledMap;
 
 float random_spawn(const float max_size = 10.f)
 {
@@ -43,156 +48,259 @@ static uint16_t create_random_entity()
   return newEid;
 }
 
-void on_join([[maybe_unused]]ENetPacket *packet, ENetPeer *peer, ENetHost *host)
+// Server handler for connection events
+class ServerHandler : public socketwire::IReliableConnectionHandler
 {
-  // send all entities
-  for (const Entity &ent : entities)
-    send_new_entity(peer, ent);
+public:
+  explicit ServerHandler(socketwire::ConnectionManager* mgr) : manager(mgr) {}
 
-  // find max eid
+  void onConnected() override
+  {
+    printf("Client connected\n");
+  }
+
+  void onDisconnected() override
+  {
+    printf("Client disconnected\n");
+  }
+
+  void onReliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
+  {
+    processPacket(data, size);
+  }
+
+  void onUnreliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
+  {
+    processPacket(data, size);
+  }
+
+  void onTimeout() override
+  {
+    printf("Client connection timeout\n");
+  }
+
+private:
+  [[maybe_unused]] socketwire::ConnectionManager* manager;
+
+  void processPacket(const void* data, std::size_t size)
+  {
+    MessageType msgType = get_packet_type(data, size);
+
+    switch (msgType)
+    {
+      case E_CLIENT_TO_SERVER_JOIN:
+        // Handle join - will be processed in main loop
+        break;
+      case E_CLIENT_TO_SERVER_STATE:
+        on_state(data, size);
+        break;
+      default:
+        break;
+    }
+  }
+
+  void on_state(const void* data, size_t size)
+  {
+    uint16_t eid = INVALID_ENTITY;
+    float x = 0.f; float y = 0.f;
+    deserialize_entity_state(data, size, eid, x, y);
+    for (Entity &e : entities)
+      if (e.eid == eid)
+      {
+        e.x = x;
+        e.y = y;
+      }
+  }
+};
+
+void on_join([[maybe_unused]] const void* data, [[maybe_unused]] size_t size, socketwire::ConnectionManager::RemoteClient* client, socketwire::ConnectionManager* manager)
+{
+  // send all entities to new client
+  for (const Entity &ent : entities)
+    send_new_entity(client->connection, ent);
+
+  // create new entity for this client
   uint16_t newEid = create_random_entity();
   const Entity& ent = entities[newEid];
 
-  controlledMap[newEid] = peer;
-
+  controlledMap[newEid] = client;
 
   // send info about new entity to everyone
-  for (size_t i = 0; i < host->peerCount; ++i)
-    send_new_entity(&host->peers[i], ent);
-  // send info about controlled entity
-  send_set_controlled_entity(peer, newEid);
+  auto clients = manager->getConnections();
+  for (auto* c : clients)
+  {
+    if (c->connection != nullptr && c->connection->isConnected())
+      send_new_entity(c->connection, ent);
+  }
+
+  // send info about controlled entity to the new client
+  send_set_controlled_entity(client->connection, newEid);
 }
 
-void on_state(ENetPacket *packet)
-{
-  uint16_t eid = INVALID_ENTITY;
-  float x = 0.f; float y = 0.f;
-  deserialize_entity_state(packet, eid, x, y);
-  for (Entity &e : entities)
-    if (e.eid == eid)
-    {
-      e.x = x;
-      e.y = y;
-    }
-}
-
-// int main(int argc, const char **argv)
 int main()
 {
-  if (enet_initialize() != 0)
+  // Initialize SocketWire
+  socketwire::register_posix_socket_factory();
+  auto* factory = socketwire::SocketFactoryRegistry::getFactory();
+  if (factory == nullptr)
   {
-    printf("Cannot init ENet");
+    printf("Cannot get socket factory\n");
     return 1;
   }
-  ENetAddress address;
 
-  address.host = ENET_HOST_ANY;
-  address.port = 10131;
+  // Create UDP socket
+  socketwire::SocketConfig cfg;
+  cfg.nonBlocking = true;
+  cfg.reuseAddress = true;
 
-  ENetHost *server = enet_host_create(&address, 32, 2, 0, 0);
-
-  if (server == nullptr)
+  auto socket = factory->createUDPSocket(cfg);
+  if (socket == nullptr)
   {
-    printf("Cannot create ENet server\n");
+    printf("Cannot create UDP socket\n");
     return 1;
   }
+
+  // Bind to server port
+  socketwire::SocketAddress anyAddr = socketwire::SocketAddress::fromIPv4(0);
+  auto bindResult = socket->bind(anyAddr, 10131);
+  if (bindResult != socketwire::SocketError::None)
+  {
+    printf("Cannot bind socket to port 10131\n");
+    return 1;
+  }
+
+  printf("Server listening on port 10131...\n");
+
+  // Create connection manager
+  socketwire::ReliableConnectionConfig connCfg;
+  connCfg.numChannels = 2;
+  socketwire::ConnectionManager manager(socket.get(), connCfg);
+
+  // Set up handler
+  ServerHandler handler(&manager);
+  manager.setHandler(&handler);
+
+  // Create socket poller
+  socketwire::SocketPoller poller;
+  poller.addSocket(socket.get());
 
   bool created_ai_entities = false;
   constexpr int NUM_AI = 10;
 
-  const int GAME_DURATION = 60; // game timer
+  const int GAME_DURATION = 60;
   int game_time_remaining = GAME_DURATION;
-  uint32_t last_time_update = 0;
+  auto last_time_update = std::chrono::steady_clock::now();
   bool game_over = false;
 
-  uint32_t lastTime = enet_time_get();
+  auto lastTime = std::chrono::steady_clock::now();
+
+  // Track pending join requests
+  std::map<socketwire::ConnectionManager::RemoteClient*, bool> pendingJoins;
+
   while (true)
   {
-    uint32_t curTime = enet_time_get();
-    float dt = (curTime - lastTime) * 0.001f;
+    auto curTime = std::chrono::steady_clock::now();
+    float dt = std::chrono::duration_cast<std::chrono::milliseconds>(curTime - lastTime).count() * 0.001f;
     lastTime = curTime;
 
-    if (!game_over && created_ai_entities && curTime - last_time_update >= 1000) {
-      game_time_remaining--;
-      last_time_update = curTime;
-
-      // Send time updates to all clients
-      for (size_t i = 0; i < server->peerCount; ++i) {
-        ENetPeer *peer = &server->peers[i];
-        send_game_time(peer, game_time_remaining);
-      }
-
-      printf("Game time remaining: %d seconds\n", game_time_remaining);
-
-      if (game_time_remaining <= 0) {
-        game_over = true;
-
-        // Find highest score
-        uint16_t winner_eid = INVALID_ENTITY;
-        int highest_score = -1;
-
-        for (const Entity &e : entities) {
-          if (e.score > highest_score) {
-            highest_score = e.score;
-            winner_eid = e.eid;
-          }
-        }
-
-        printf("Game over! Winner is entity %d with score %d\n", 
-               winner_eid, highest_score);
-
-        for (size_t i = 0; i < server->peerCount; ++i) {
-          ENetPeer *peer = &server->peers[i];
-          send_game_over(peer, winner_eid, highest_score);
-        }
-      }
-    }
-
-    ENetEvent event;
-    while (enet_host_service(server, &event, 0) > 0)
+    // Game timer update
+    if (!game_over && created_ai_entities)
     {
-      switch (event.type)
+      auto timeSinceUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(curTime - last_time_update).count();
+      if (timeSinceUpdate >= 1000)
       {
-      case ENET_EVENT_TYPE_CONNECT:
-        printf("Connection with %x:%u established\n", event.peer->address.host, event.peer->address.port);
+        game_time_remaining--;
+        last_time_update = curTime;
 
-        if (!created_ai_entities) {
-          printf("Creating AI entities for first client\n");
-          for (int i = 0; i < NUM_AI; ++i)
-          {
-            uint16_t eid = create_random_entity();
-            entities[eid].serverControlled = true;
-            entities[eid].score = 0;
-            controlledMap[eid] = nullptr;
-          }
-          created_ai_entities = true;
-        }
-        break;
-      case ENET_EVENT_TYPE_RECEIVE:
-        switch (get_packet_type(event.packet))
+        // Send time updates to all clients
+        auto clients = manager.getConnections();
+        for (auto* client : clients)
         {
-          case E_CLIENT_TO_SERVER_JOIN:
-            on_join(event.packet, event.peer, server);
-            break;
-          case E_CLIENT_TO_SERVER_STATE:
-            on_state(event.packet);
-            break;
-          case E_SERVER_TO_CLIENT_NEW_ENTITY:
-          case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
-          case E_SERVER_TO_CLIENT_SNAPSHOT:
-          case E_SERVER_TO_CLIENT_ENTITY_DEVOURED:
-          case E_SERVER_TO_CLIENT_SCORE_UPDATE:
-          case E_SERVER_TO_CLIENT_GAME_TIME:
-          case E_SERVER_TO_CLIENT_GAME_OVER:
-            printf("Warning: Received server-to-client message on server\n");
-            break;
-        };
-        enet_packet_destroy(event.packet);
-        break;
-      default:
-        break;
-      };
+          if (client->connection != nullptr && client->connection->isConnected())
+            send_game_time(client->connection, game_time_remaining);
+        }
+
+        printf("Game time remaining: %d seconds\n", game_time_remaining);
+
+        if (game_time_remaining <= 0)
+        {
+          game_over = true;
+
+          // Find highest score
+          uint16_t winner_eid = INVALID_ENTITY;
+          int highest_score = -1;
+
+          for (const Entity &e : entities)
+          {
+            if (e.score > highest_score)
+            {
+              highest_score = e.score;
+              winner_eid = e.eid;
+            }
+          }
+
+          printf("Game over! Winner is entity %d with score %d\n", 
+                 winner_eid, highest_score);
+
+          for (auto* client : clients)
+          {
+            if (client->connection != nullptr && client->connection->isConnected())
+              send_game_over(client->connection, winner_eid, highest_score);
+          }
+        }
+      }
     }
+
+    // Poll socket for incoming data
+    auto events = poller.poll(0); // non-blocking
+    for (auto& ev : events)
+    {
+      if (ev.readable)
+      {
+        socketwire::SocketAddress fromAddr;
+        std::uint16_t fromPort = 0;
+        char buffer[2048];
+        auto result = socket->receive(buffer, sizeof(buffer), fromAddr, fromPort);
+        if (result.succeeded() && result.bytes > 0)
+        {
+          // Process packet through connection manager
+          manager.processPacket(buffer, static_cast<size_t>(result.bytes), fromAddr, fromPort);
+
+          // Check if this is a join request
+          MessageType msgType = get_packet_type(buffer, static_cast<size_t>(result.bytes));
+          if (msgType == E_CLIENT_TO_SERVER_JOIN)
+          {
+            auto* client = manager.getConnection(fromAddr, fromPort);
+            if (client != nullptr && client->connection != nullptr)
+            {
+              // Create AI entities on first connection
+              if (!created_ai_entities)
+              {
+                printf("Creating AI entities for first client\n");
+                for (int i = 0; i < NUM_AI; ++i)
+                {
+                  uint16_t eid = create_random_entity();
+                  entities[eid].serverControlled = true;
+                  entities[eid].score = 0;
+                  controlledMap[eid] = nullptr;
+                }
+                created_ai_entities = true;
+              }
+
+              // Mark connection as established
+              client->connection->setConnected();
+              // Handle join
+              on_join(buffer, static_cast<size_t>(result.bytes), client, &manager);
+            }
+          }
+        }
+      }
+    }
+
+    // Update all connections
+    manager.update();
+
+    // AI movement
     for (Entity &e : entities)
     {
       if (e.serverControlled)
@@ -212,6 +320,7 @@ int main()
       }
     }
 
+    // Collision detection
     bool collision_occurred = false;
     for (size_t i = 0; i < entities.size() && !collision_occurred; i++)
     {
@@ -222,7 +331,8 @@ int main()
         Entity &e1 = entities[i];
         Entity &e2 = entities[j];
 
-        if (e1.size <= 0 || e2.size <= 0 || e1.size > 1000 || e2.size > 1000) {
+        if (e1.size <= 0 || e2.size <= 0 || e1.size > 1000 || e2.size > 1000)
+        {
           continue;
         }
 
@@ -254,14 +364,16 @@ int main()
 
           float size_gain = devoured->size / 2.0f;
 
-          if (size_gain > 0.0f && size_gain < 50.0f) {
+          if (size_gain > 0.0f && size_gain < 50.0f)
+          {
             const float MAX_SIZE = 100.0f;
             float newSize = devourer->size + size_gain;
             devourer->size = std::min(newSize, MAX_SIZE);
 
             devoured->size = 5.0f + (rand() % 5); // Random size between 5 and 10
 
-            if (!devoured->serverControlled) {
+            if (!devoured->serverControlled)
+            {
               devoured->score = 0;
             }
 
@@ -274,24 +386,31 @@ int main()
               devourer->score += static_cast<int>(size_gain);
             }
 
-            for (size_t k = 0; k < server->peerCount; ++k)
+            // Send score update to all clients
+            auto clients = manager.getConnections();
+            for (auto* client : clients)
             {
-              ENetPeer *peer = &server->peers[k];
-              send_score_update(peer, devourer->eid, devourer->score);
+              if (client->connection != nullptr && client->connection->isConnected())
+                send_score_update(client->connection, devourer->eid, devourer->score);
             }
 
             devoured->x = (rand() % 100 - 50) * 10.f;
             devoured->y = (rand() % 100 - 50) * 10.f;
 
-            for (size_t k = 0; k < server->peerCount; ++k)
+            // Send devoured event to all clients
+            for (auto* client : clients)
             {
-              ENetPeer *peer = &server->peers[k];
-              send_entity_devoured(peer, devoured->eid, devourer->eid, 
-                                  devourer->size, devoured->x, devoured->y);
+              if (client->connection != nullptr && client->connection->isConnected())
+              {
+                send_entity_devoured(client->connection, devoured->eid, devourer->eid, 
+                                    devourer->size, devoured->x, devoured->y);
+              }
             }
 
             collision_occurred = true;
-          } else {
+          }
+          else
+          {
             printf("Warning: Invalid size gain (%.1f) detected! Skipping this collision.\n", size_gain);
           }
           break;
@@ -299,20 +418,24 @@ int main()
       }
     }
 
+    // Send snapshots to all clients
+    auto clients = manager.getConnections();
     for (const Entity &e : entities)
     {
-      for (size_t i = 0; i < server->peerCount; ++i)
+      for (auto* client : clients)
       {
-        ENetPeer *peer = &server->peers[i];
-        if (controlledMap[e.eid] != peer)
-          send_snapshot(peer, e.eid, e.x, e.y, e.size);
+        if (client->connection != nullptr && client->connection->isConnected())
+        {
+          // Don't send snapshot for entity controlled by this client
+          if (controlledMap[e.eid] != client)
+            send_snapshot(client->connection, e.eid, e.x, e.y, e.size);
+        }
       }
     }
-    //usleep(400000);
+
+    // Small sleep to avoid spinning CPU
+    std::this_thread::sleep_for(std::chrono::microseconds(1000));
   }
 
-  enet_host_destroy(server);
-
-  atexit(enet_deinitialize);
   return 0;
 }
