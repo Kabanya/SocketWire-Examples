@@ -1,15 +1,15 @@
-project(raylib-entity-eater)
+project(raylib-examples)
 
 set(SIMPLE_GAME
   game.cpp
   )
 
-set(SIMPLE_MULTIPLAYER_CLIENT
+set(EARN_GOLD_CLIENT
   client.cpp
   protocol.cpp
   )
 
-set(SIMPLE_MULTIPLAYER_SERVER
+set(EARN_GOLD_SERVER
   server.cpp
   protocol.cpp
   )
@@ -23,12 +23,12 @@ add_executable(simple-game ${SIMPLE_GAME})
 target_link_libraries(simple-game PUBLIC project_options project_warnings)
 target_link_libraries(simple-game PUBLIC raylib)
 
-add_executable(simple-multiplayer-client ${SIMPLE_MULTIPLAYER_CLIENT})
+add_executable(simple-multiplayer-client ${EARN_GOLD_CLIENT})
 target_link_libraries(simple-multiplayer-client PUBLIC project_options project_warnings)
 target_link_libraries(simple-multiplayer-client PUBLIC raylib)
 target_link_libraries(simple-multiplayer-client PRIVATE SocketWire)
 
-add_executable(simple-multiplayer-server ${SIMPLE_MULTIPLAYER_SERVER})
+add_executable(simple-multiplayer-server ${EARN_GOLD_SERVER})
 target_link_libraries(simple-multiplayer-server PUBLIC project_options project_warnings)
 target_link_libraries(simple-multiplayer-server PRIVATE SocketWire)
 

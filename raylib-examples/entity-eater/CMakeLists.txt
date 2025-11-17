@@ -1,4 +1,4 @@
-project(raylib-entity-eater)
+project(raylib-examples)
 
 set(ENTITY_EATER_CLIENT
   main.cpp
