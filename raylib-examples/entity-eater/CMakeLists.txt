@@ -10,8 +10,6 @@ set(ENTITY_EATER_SERVER
   protocol.cpp
   )
 
-include_directories("../3rdParty/enet/include")
-
 if(MSVC)
   # https://github.com/raysan5/raylib/issues/857
   add_compile_definitions(NOVIRTUALKEYCODES NOWINMESSAGES NOWINSTYLES NOSYSMETRICS NOMENUS NOICONS NOKEYSTATES NOSYSCOMMANDS NORASTEROPS NOSHOWWINDOW OEMRESOURCE NOATOM NOCLIPBOARD NOCOLOR NOCTLMGR NODRAWTEXT NOGDI NOKERNEL NOUSER NOMB NOMEMMGR NOMETAFILE NOMINMAX NOMSG NOOPENFILE NOSCROLL NOSERVICE NOSOUND NOTEXTMETRIC NOWH NOWINOFFSETS NOCOMM NOKANJI NOHELP NOPROFILER NODEFERWINDOWPOS NOMCX)
@@ -19,13 +17,11 @@ endif()
 
 add_executable(entity-eater-client ${ENTITY_EATER_CLIENT})
 target_link_libraries(entity-eater-client PUBLIC project_options project_warnings)
-target_link_libraries(entity-eater-client PUBLIC raylib enet)
+target_link_libraries(entity-eater-client PUBLIC raylib)
+target_link_libraries(entity-eater-client PRIVATE SocketWire)
 
 add_executable(entity-eater-server ${ENTITY_EATER_SERVER})
 target_link_libraries(entity-eater-server PUBLIC project_options project_warnings)
-target_link_libraries(entity-eater-server PUBLIC enet)
-
-target_link_libraries(entity-eater-client PRIVATE SocketWire)
 target_link_libraries(entity-eater-server PRIVATE SocketWire)
 
 if(MSVC)

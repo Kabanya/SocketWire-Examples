@@ -1,9 +1,8 @@
-#include <algorithm> // min/max
-#include <cstdio>    // printf
+#include <algorithm>
+#include <cstdio>
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include <chrono>
 #include <memory>
 
 #include "raylib.h"
@@ -28,7 +27,7 @@ void on_new_entity_packet(const void* data, size_t size)
   deserialize_new_entity(data, size, newEntity);
   auto itf = indexMap.find(newEntity.eid);
   if (itf != indexMap.end())
-    return; // ничего не делаем если есть entity
+    return; // we don't do anything if there is an entity
   indexMap[newEntity.eid] = entities.size();
   entities.push_back(newEntity);
 }
@@ -126,29 +125,35 @@ class ClientHandler : public socketwire::IReliableConnectionHandler
 public:
   void onConnected() override
   {
-    printf("Connected to server!\n");
+    printf("[CLIENT] Connected to server!\n");
+    fflush(stdout);
     connected = true;
   }
 
   void onDisconnected() override
   {
-    printf("Disconnected from server\n");
+    printf("[CLIENT] Disconnected from server\n");
+    fflush(stdout);
     connected = false;
   }
 
   void onReliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
   {
+    printf("[CLIENT] Received reliable packet, size=%zu\n", size);
+    fflush(stdout);
     processPacket(data, size);
   }
 
   void onUnreliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
   {
+    printf("[CLIENT] Received unreliable packet, size=%zu\n", size);
+    fflush(stdout);
     processPacket(data, size);
   }
 
   void onTimeout() override
   {
-    printf("Connection timeout\n");
+    printf("[CLIENT] Connection timeout\n");
   }
 
   bool isConnected() const { return connected; }
@@ -159,22 +164,25 @@ private:
   void processPacket(const void* data, std::size_t size)
   {
     MessageType msgType = get_packet_type(data, size);
-    
+    printf("[CLIENT] Processing packet type=%d\n", static_cast<int>(msgType));
+    fflush(stdout);
+
     switch (msgType)
     {
     case E_SERVER_TO_CLIENT_NEW_ENTITY:
       on_new_entity_packet(data, size);
-      printf("new entity\n");
+      printf("[CLIENT] Received new entity\n");
       break;
     case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
       on_set_controlled_entity(data, size);
-      printf("got controlled entity\n");
+      printf("[CLIENT] Got controlled entity ID=%d\n", myEntity);
       break;
     case E_SERVER_TO_CLIENT_SNAPSHOT:
       on_snapshot(data, size);
       break;
     case E_SERVER_TO_CLIENT_ENTITY_DEVOURED:
       on_entity_devoured(data, size);
+      printf("[CLIENT] Entity devoured event\n");
       break;
     case E_SERVER_TO_CLIENT_SCORE_UPDATE:
       on_score_update(data, size);
@@ -187,7 +195,7 @@ private:
       break;
     case E_CLIENT_TO_SERVER_JOIN:
     case E_CLIENT_TO_SERVER_STATE:
-      // No action needed for client-to-server packets on client
+      printf("[CLIENT] Warning: received client-to-server packet\n");
       break;
     }
   }
@@ -264,6 +272,7 @@ int main()
   SetTargetFPS(60);
 
   bool sentJoin = false;
+  socketwire::ConnectionState lastLoggedState = socketwire::ConnectionState::Disconnected;
 
   while (!WindowShouldClose())
   {
@@ -278,7 +287,7 @@ int main()
         socketwire::SocketAddress fromAddr;
         std::uint16_t fromPort = 0;
         char buffer[2048];
-        
+
         auto result = socket->receive(buffer, sizeof(buffer), fromAddr, fromPort);
         if (result.succeeded() && result.bytes > 0)
         {
@@ -290,9 +299,21 @@ int main()
     // Update connection (handles retries, timeouts, etc.)
     connection.update();
 
+    // Log connection state changes
+    auto currentState = connection.getState();
+    if (currentState != lastLoggedState)
+    {
+      printf("[CLIENT] Connection state changed: %d -> %d\n", 
+             static_cast<int>(lastLoggedState), static_cast<int>(currentState));
+      fflush(stdout);
+      lastLoggedState = currentState;
+    }
+
     // Send join when connected
     if (connection.isConnected() && !sentJoin)
     {
+      printf("[CLIENT] Sending join request\n");
+      fflush(stdout);
       send_join(&connection);
       sentJoin = true;
     }

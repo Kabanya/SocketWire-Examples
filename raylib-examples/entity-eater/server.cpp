@@ -56,27 +56,33 @@ public:
 
   void onConnected() override
   {
-    printf("Client connected\n");
+    printf("[SERVER] Client connected\n");
+    fflush(stdout);
   }
 
   void onDisconnected() override
   {
-    printf("Client disconnected\n");
+    printf("[SERVER] Client disconnected\n");
+    fflush(stdout);
   }
 
   void onReliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
   {
+    printf("[SERVER] Received reliable packet, size=%zu, channel=%d\n", size, channel);
+    fflush(stdout);
     processPacket(data, size);
   }
 
   void onUnreliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
   {
+    printf("[SERVER] Received unreliable packet, size=%zu, channel=%d\n", size, channel);
+    fflush(stdout);
     processPacket(data, size);
   }
 
   void onTimeout() override
   {
-    printf("Client connection timeout\n");
+    printf("[SERVER] Client connection timeout\n");
   }
 
 private:
@@ -85,16 +91,19 @@ private:
   void processPacket(const void* data, std::size_t size)
   {
     MessageType msgType = get_packet_type(data, size);
+    printf("[SERVER] Processing packet type=%d, size=%zu\n", static_cast<int>(msgType), size);
+    fflush(stdout);
 
     switch (msgType)
     {
       case E_CLIENT_TO_SERVER_JOIN:
-        // Handle join - will be processed in main loop
+        printf("[SERVER] Received JOIN request (will be processed in main loop)\n");
         break;
       case E_CLIENT_TO_SERVER_STATE:
         on_state(data, size);
         break;
       default:
+        printf("[SERVER] Unknown packet type=%d\n", static_cast<int>(msgType));
         break;
     }
   }
@@ -115,25 +124,35 @@ private:
 
 void on_join([[maybe_unused]] const void* data, [[maybe_unused]] size_t size, socketwire::ConnectionManager::RemoteClient* client, socketwire::ConnectionManager* manager)
 {
+  printf("[SERVER] Processing JOIN for client - sending %zu existing entities\n", entities.size());
+
   // send all entities to new client
   for (const Entity &ent : entities)
+  {
+    printf("[SERVER] Sending entity %d to new client\n", ent.eid);
     send_new_entity(client->connection, ent);
+  }
 
   // create new entity for this client
   uint16_t newEid = create_random_entity();
   const Entity& ent = entities[newEid];
 
   controlledMap[newEid] = client;
+  printf("[SERVER] Created new entity %d for client\n", newEid);
 
   // send info about new entity to everyone
   auto clients = manager->getConnections();
   for (auto* c : clients)
   {
     if (c->connection != nullptr && c->connection->isConnected())
+    {
+      printf("[SERVER] Broadcasting new entity %d to all clients\n", newEid);
       send_new_entity(c->connection, ent);
+    }
   }
 
   // send info about controlled entity to the new client
+  printf("[SERVER] Sending controlled entity ID %d to client\n", newEid);
   send_set_controlled_entity(client->connection, newEid);
 }
 
@@ -170,6 +189,7 @@ int main()
   }
 
   printf("Server listening on port 10131...\n");
+  fflush(stdout);
 
   // Create connection manager
   socketwire::ReliableConnectionConfig connCfg;
@@ -260,44 +280,66 @@ int main()
         socketwire::SocketAddress fromAddr;
         std::uint16_t fromPort = 0;
         char buffer[2048];
+        
         auto result = socket->receive(buffer, sizeof(buffer), fromAddr, fromPort);
         if (result.succeeded() && result.bytes > 0)
         {
-          // Process packet through connection manager
+          printf("[SERVER] Received %td bytes from client\n", result.bytes);
+          fflush(stdout);
+          
+          // Process packet through connection manager (handles Connect/Accept handshake)
           manager.processPacket(buffer, static_cast<size_t>(result.bytes), fromAddr, fromPort);
+
+          // After processing, check client state
+          auto* client = manager.getConnection(fromAddr, fromPort);
+          if (client != nullptr && client->connection != nullptr)
+          {
+            printf("[SERVER] Client connection state after processPacket: %d\n", static_cast<int>(client->connection->getState()));
+          }
 
           // Check if this is a join request
           MessageType msgType = get_packet_type(buffer, static_cast<size_t>(result.bytes));
           if (msgType == E_CLIENT_TO_SERVER_JOIN)
           {
-            auto* client = manager.getConnection(fromAddr, fromPort);
+            printf("[SERVER] Detected JOIN packet, looking up client\n");
             if (client != nullptr && client->connection != nullptr)
             {
-              // Create AI entities on first connection
-              if (!created_ai_entities)
+              printf("[SERVER] Found client connection, state=%d\n", static_cast<int>(client->connection->getState()));
+              // Only process join if connection is established
+              if (client->connection->isConnected())
               {
-                printf("Creating AI entities for first client\n");
-                for (int i = 0; i < NUM_AI; ++i)
+                // Create AI entities on first connection
+                if (!created_ai_entities)
                 {
-                  uint16_t eid = create_random_entity();
-                  entities[eid].serverControlled = true;
-                  entities[eid].score = 0;
-                  controlledMap[eid] = nullptr;
+                  printf("[SERVER] Creating AI entities for first client\n");
+                  for (int i = 0; i < NUM_AI; ++i)
+                  {
+                    uint16_t eid = create_random_entity();
+                    entities[eid].serverControlled = true;
+                    entities[eid].score = 0;
+                    controlledMap[eid] = nullptr;
+                  }
+                  created_ai_entities = true;
+                  printf("[SERVER] Created %d AI entities, total entities: %zu\n", NUM_AI, entities.size());
                 }
-                created_ai_entities = true;
+                // Handle join
+                on_join(buffer, static_cast<size_t>(result.bytes), client, &manager);
               }
-
-              // Mark connection as established
-              client->connection->setConnected();
-              // Handle join
-              on_join(buffer, static_cast<size_t>(result.bytes), client, &manager);
+              else
+              {
+                printf("[SERVER] WARNING: Connection not yet established (state=%d), JOIN ignored. Client needs to wait for handshake.\n", static_cast<int>(client->connection->getState()));
+              }
+            }
+            else
+            {
+              printf("[SERVER] ERROR: Could not find client connection!\n");
             }
           }
         }
       }
     }
 
-    // Update all connections
+    // Update all connections (handles retries, timeouts, processes pending reliable packets)
     manager.update();
 
     // AI movement

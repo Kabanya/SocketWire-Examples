@@ -7,7 +7,11 @@ void send_join(socketwire::ReliableConnection* connection)
   socketwire::BitStream bs;
   bs.write<uint8_t>(E_CLIENT_TO_SERVER_JOIN);
 
-  connection->sendReliable(0, bs);
+  printf("[PROTOCOL] send_join: size=%zu bytes\n", bs.getSizeBytes());
+  fflush(stdout);
+  bool sent = connection->sendReliable(0, bs);
+  printf("[PROTOCOL] send_join: sent=%d\n", static_cast<int>(sent));
+  fflush(stdout);
 }
 
 void send_new_entity(socketwire::ReliableConnection* connection, const Entity &ent)
@@ -25,7 +29,11 @@ void send_new_entity(socketwire::ReliableConnection* connection, const Entity &e
   bs.write<float>(ent.size);
   bs.write<int>(ent.score);
 
-  connection->sendReliable(0, bs);
+  printf("[PROTOCOL] send_new_entity: eid=%d, size=%zu bytes\n", ent.eid, bs.getSizeBytes());
+  fflush(stdout);
+  bool sent = connection->sendReliable(0, bs);
+  printf("[PROTOCOL] send_new_entity: sent=%d\n", static_cast<int>(sent));
+  fflush(stdout);
 }
 
 void send_set_controlled_entity(socketwire::ReliableConnection* connection, uint16_t eid)
@@ -64,7 +72,6 @@ MessageType get_packet_type(const void* data, size_t size)
 {
   if (size < 1)
     return E_CLIENT_TO_SERVER_JOIN; // fallback
-  
   return static_cast<MessageType>(*static_cast<const uint8_t*>(data));
 }
 
