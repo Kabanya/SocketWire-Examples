@@ -52,7 +52,7 @@ int main()
 
   SocketAddress dest = SocketAddress::fromIPv4(INADDR_LOOPBACK);
 
-  std::string msg = "Hello from use case of Socket class!";
+  std::string msg = "Hello from use case of Client from Socket class!";
   client->sendTo(msg.c_str(), msg.size(), dest, 40404);
 
   for (int i = 0; i < 10; ++i)
@@ -60,5 +60,6 @@ int main()
     client->poll(&handler);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
+  std::cout << "echo client is finished" << std::endl;
   return 0;
 }
