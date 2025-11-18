@@ -42,7 +42,7 @@ public:
     std::cout << "\r" << message << "\n>";
     std::cout.flush();
   }
-  void onSocketError(SocketError errorCode) override 
+  void onSocketError(SocketError errorCode) override
   {
     std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
   }

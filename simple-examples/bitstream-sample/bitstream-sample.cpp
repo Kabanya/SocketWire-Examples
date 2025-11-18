@@ -7,15 +7,15 @@ int main()
   socketwire::BitStream stream;
 
   std::cout << "Test 1: Integer Types: \n" << std::endl;
-  int8_t val1 = -128;
-  uint16_t val2 = 65535;
-  int32_t val3 = -2147483648;
-  uint64_t val4 = 18446744073709551615ULL;
+  std::int8_t val1 = -128;
+  std::uint16_t val2 = 65535;
+  std::int32_t val3 = -2147483648;
+  std::uint64_t val4 = 18446744073709551615ULL;
 
-  stream.write<int8_t>(val1);
-  stream.write<uint16_t>(val2);
-  stream.write<int32_t>(val3);
-  stream.write<uint64_t>(val4);
+  stream.write<std::int8_t>(val1);
+  stream.write<std::uint16_t>(val2);
+  stream.write<std::int32_t>(val3);
+  stream.write<std::uint64_t>(val4);
 
   std::cout << "Written: " << (int)val1 << ", " << val2 << ", " << val3 << ", " << val4
             << std::endl;
@@ -59,17 +59,17 @@ int main()
   std::cout << "\n\nReading Back: " << std::endl;
   stream.resetRead();
 
-  int8_t rVal1;
-  stream.read<int8_t>(rVal1);
-  uint16_t rVal2;
-  stream.read<uint16_t>(rVal2);
-  int32_t rVal3;
-  stream.read<int32_t>(rVal3);
-  uint64_t rVal4;
-  stream.read<uint64_t>(rVal4);
+  std::int8_t rVal1;
+  stream.read<std::int8_t>(rVal1);
+  std::uint16_t rVal2;
+  stream.read<std::uint16_t>(rVal2);
+  std::int32_t rVal3;
+  stream.read<std::int32_t>(rVal3);
+  std::uint64_t rVal4;
+  stream.read<std::uint64_t>(rVal4);
 
-  std::cout << "Read integers: " << (int)rVal1 << ", " << rVal2 << ", " << rVal3 << ", "
-            << rVal4 << std::endl;
+  std::cout << "Read integers: " << (int)rVal1 << ", " << rVal2
+            << ", " << rVal3 << ", " << rVal4 << std::endl;
 
   std::string rShort, rLong, rEmpty;
   stream.read(rShort);
@@ -81,13 +81,11 @@ int main()
 
   std::cout << "Read bits: ";
   for (int i = 0; i < 5; i++)
-  {
     std::cout << stream.readBit() << " ";
-  }
   std::cout << std::endl;
 
-  uint32_t rBits8 = stream.readBits(8);
-  uint32_t rBits4 = stream.readBits(4);
+  std::int32_t rBits8 = stream.readBits(8);
+  std::int32_t rBits4 = stream.readBits(4);
   std::cout << "Read 8 bits: " << rBits8 << ", 4 bits: " << rBits4 << std::endl;
 
   std::cout << "Read quantized floats: ";
