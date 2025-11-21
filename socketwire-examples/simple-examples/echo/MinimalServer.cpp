@@ -1,8 +1,17 @@
 #include "i_socket.hpp"
+#include "socket_init.hpp"
 #include <iostream>
-#include <unistd.h>
+#include <thread>
+#include <chrono>
 #include <memory>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <netinet/in.h>
+#include <unistd.h>
+#endif
 
 using namespace socketwire; //NOLINT
 
@@ -27,7 +36,7 @@ extern void register_posix_socket_factory();
 
 int main()
 {
-  socketwire::register_posix_socket_factory();
+  socketwire::initialize_sockets();
 
   auto factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -55,6 +64,6 @@ int main()
   while (true)
   {
     server->poll(&handler);
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::microseconds(10000));
   }
 }

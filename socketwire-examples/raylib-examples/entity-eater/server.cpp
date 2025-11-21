@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "i_socket.hpp"
+#include "socket_init.hpp"
 #include "reliable_connection.hpp"
 #include "socket_poller.hpp"
 
@@ -159,7 +160,7 @@ void on_join([[maybe_unused]] const void* data, [[maybe_unused]] size_t size, so
 int main()
 {
   // Initialize SocketWire
-  socketwire::register_posix_socket_factory();
+  socketwire::initialize_sockets();
   auto* factory = socketwire::SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
   {

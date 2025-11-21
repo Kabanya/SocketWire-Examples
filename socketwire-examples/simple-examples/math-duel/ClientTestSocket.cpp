@@ -1,4 +1,4 @@
-#if defined(__APPLE__) || defined(__linux__)
+#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -7,25 +7,25 @@
 #include <unistd.h>
 #endif
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include <cstdio>
 #include <iostream>
 #include <thread>
 #include <memory>
 
 #include "i_socket.hpp"
+#include "socket_init.hpp"
 #include "ClientTestSocket.h"
 #include "bit_stream.hpp"
 
 using namespace socketwire; //NOLINT
 
-// Forward declaration from posix_udp_socket.cpp
-namespace socketwire {
-extern void register_posix_socket_factory();
-}
-
 std::unique_ptr<ISocket> clientSocket;
 SocketAddress serverAddr;
-
 
 class ClientHandler : public ISocketEventHandler
 {
@@ -109,7 +109,7 @@ void display_help()
 int main()
 {
   // Initialize socket factory
-  socketwire::register_posix_socket_factory();
+  socketwire::initialize_sockets();
 
   ClientHandler handler;
 

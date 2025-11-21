@@ -1,5 +1,6 @@
 #include "bit_stream.hpp"
-#if defined(__APPLE__) || defined(__linux__)
+#include "socket_init.hpp"
+#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -8,6 +9,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#endif
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #endif
 
 #include <cstring>
@@ -23,10 +29,6 @@
 
 using namespace socketwire; //NOLINT
 
-namespace socketwire {
-extern void register_posix_socket_factory();
-}
-
 std::unique_ptr<ISocket> serverSocket;
 std::vector<Client> clients;
 std::queue<Client> duelQueue;
@@ -36,9 +38,17 @@ std::string client_to_string(const Client& client)
 {
   // Convert IPv4 address from host order to dotted decimal
   uint32_t hostAddr = client.addr.ipv4.hostOrderAddress;
-  in_addr addr;
+  char buf[INET_ADDRSTRLEN];
+#if defined(_WIN32)
+  struct in_addr addr;
   addr.s_addr = htonl(hostAddr);
-  return std::string(inet_ntoa(addr)) + ":" + std::to_string(client.port);
+  inet_ntop(AF_INET, &addr, buf, sizeof(buf));
+#else
+  struct in_addr addr;
+  addr.s_addr = htonl(hostAddr);
+  inet_ntoa(addr);
+#endif
+  return std::string(buf) + ":" + std::to_string(client.port);
 }
 
 void msg_to_all_clients(const std::vector<Client>& clients, const std::string& message)
@@ -337,7 +347,7 @@ public:
 int main()
 {
   // Initialize socket factory
-  socketwire::register_posix_socket_factory();
+  socketwire::initialize_sockets();
 
   const char* port_str = "2025";
   uint16_t port = 2025;

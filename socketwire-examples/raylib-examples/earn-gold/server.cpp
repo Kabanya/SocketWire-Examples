@@ -9,6 +9,7 @@
 
 #include "protocol.h"
 #include "i_socket.hpp"
+#include "socket_init.hpp"
 #include "reliable_connection.hpp"
 #include "socket_poller.hpp"
 
@@ -246,7 +247,7 @@ int main()
   fflush(stdout);
 
   // Initialize SocketWire
-  socketwire::register_posix_socket_factory();
+  socketwire::initialize_sockets();
   auto* factory = socketwire::SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
   {

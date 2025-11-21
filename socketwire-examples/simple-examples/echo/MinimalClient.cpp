@@ -1,16 +1,19 @@
 #include "i_socket.hpp"
+#include "socket_init.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <memory>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <netinet/in.h>
+#endif
 
 using namespace socketwire; //NOLINT
 
-// Forward declaration from posix_udp_socket.cpp
-namespace socketwire {
-extern void register_posix_socket_factory();
-}
 
 class PrintHandler : public ISocketEventHandler
 {
@@ -29,7 +32,7 @@ public:
 int main()
 {
   // Initialize socket factory
-  register_posix_socket_factory();
+  initialize_sockets();
 
   auto factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
