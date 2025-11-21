@@ -1,7 +1,8 @@
+#include <cstdio>
+
 #include "protocol.h"
 #include "bit_stream.hpp"
 #include "reliable_connection.hpp"
-#include <cstdio>
 
 MessageType get_packet_type(const void* data, size_t size)
 {

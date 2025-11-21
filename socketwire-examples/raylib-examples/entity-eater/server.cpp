@@ -1,3 +1,5 @@
+#include "windows_defines.hpp"  // IWYU pragma: keep
+
 #include "entity.h"
 #include "protocol.h"
 #include <stdlib.h>
@@ -227,7 +229,8 @@ int main()
     // Game timer update
     if (!game_over && created_ai_entities)
     {
-      auto timeSinceUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(curTime - last_time_update).count();
+      auto timeSinceUpdate =
+      std::chrono::duration_cast<std::chrono::milliseconds>(curTime - last_time_update).count();
       if (timeSinceUpdate >= 1000)
       {
         game_time_remaining--;
@@ -260,7 +263,7 @@ int main()
             }
           }
 
-          printf("Game over! Winner is entity %d with score %d\n", 
+          printf("Game over! Winner is entity %d with score %d\n",
                  winner_eid, highest_score);
 
           for (auto* client : clients)
@@ -445,7 +448,7 @@ int main()
             {
               if (client->connection != nullptr && client->connection->isConnected())
               {
-                send_entity_devoured(client->connection, devoured->eid, devourer->eid, 
+                send_entity_devoured(client->connection, devoured->eid, devourer->eid,
                                     devourer->size, devoured->x, devoured->y);
               }
             }

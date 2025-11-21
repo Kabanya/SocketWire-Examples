@@ -5,7 +5,10 @@
 #include <string>
 #include <memory>
 
+#include "windows_defines.hpp"  // IWYU pragma: keep
+
 #include "raylib.h"
+
 #include "entity.h"
 #include "protocol.h"
 #include "i_socket.hpp"
@@ -346,7 +349,7 @@ int main()
           DrawCircle((int)e.x, (int)e.y, e.size, GetColor(e.color));
 
           char idText[10];
-          sprintf(idText, "%d", e.eid);
+          snprintf(idText, sizeof(idText), "%d", e.eid);
           DrawText(idText, (int)(e.x - 10), (int)(e.y - 10), 10, WHITE);
         }
       EndMode2D();
@@ -356,18 +359,18 @@ int main()
         get_entity(myEntity, [&](Entity& e)
         {
           char scoreText[50];
-          sprintf(scoreText, "Your Score: %d", e.score);
+          snprintf(scoreText, sizeof(scoreText), "Your Score: %d", e.score);
           DrawText(scoreText, 10, 10, 20, WHITE);
 
           char sizeText[50];
-          sprintf(sizeText, "Size: %.1f", e.size);
+          snprintf(sizeText, sizeof(sizeText), "Size: %.1f", e.size);
           DrawText(sizeText, 10, 40, 20, WHITE);
         });
       }
 
       // Display game timer & Leaderboard
       char timeText[50];
-      sprintf(timeText, "Time: %d", gameTimeRemaining);
+      snprintf(timeText, sizeof(timeText), "Time: %d", gameTimeRemaining);
       DrawText(timeText, width / 2 - 50, 10, 30, YELLOW);
 
       DrawRectangle(width - 200, 10, 190, 210, Color{0, 0, 0, 150});
@@ -384,7 +387,7 @@ int main()
         const char* playerType = e.serverControlled ? "AI" : "Player";
         Color textColor = (e.eid == myEntity) ? GREEN : WHITE;
 
-        sprintf(playerText, "%d. %s %d - Score: %d",
+        snprintf(playerText, sizeof(playerText), "%d. %s %d - Score: %d",
                 i + 1,
                 playerType,
                 e.eid,
@@ -408,11 +411,11 @@ int main()
         });
 
         char winnerText[100];
-        sprintf(winnerText, "Winner: %s %d", winnerType.c_str(), winnerEid);
+        snprintf(winnerText, sizeof(winnerText), "Winner: %s %d", winnerType.c_str(), winnerEid);
         DrawText(winnerText, width/2 - 120, height/2, 30, winnerColor);
 
         char scoreText[50];
-        sprintf(scoreText, "Final Score: %d", winnerScore);
+        snprintf(scoreText, sizeof(scoreText), "Final Score: %d", winnerScore);
         DrawText(scoreText, width/2 - 100, height/2 + 50, 30, YELLOW);
       }
     EndDrawing();

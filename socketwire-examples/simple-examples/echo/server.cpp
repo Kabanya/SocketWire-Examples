@@ -1,10 +1,11 @@
-#include "i_socket.hpp"
-#include "socket_init.hpp"
-#include "socket_constants.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <memory>
+
+#include "i_socket.hpp"
+#include "socket_init.hpp"
+#include "socket_constants.hpp"
 
 using namespace socketwire; //NOLINT
 

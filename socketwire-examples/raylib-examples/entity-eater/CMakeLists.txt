@@ -18,10 +18,13 @@ endif()
 add_executable(entity-eater-client ${ENTITY_EATER_CLIENT})
 target_link_libraries(entity-eater-client PUBLIC project_options project_warnings)
 target_link_libraries(entity-eater-client PUBLIC raylib)
+target_include_directories(entity-eater-client PUBLIC ${raylib_SOURCE_DIR}/include)
+target_include_directories(entity-eater-client PUBLIC ${PROJECT_SOURCE_DIR}/../../common)
 target_link_libraries(entity-eater-client PRIVATE SocketWire)
 
 add_executable(entity-eater-server ${ENTITY_EATER_SERVER})
 target_link_libraries(entity-eater-server PUBLIC project_options project_warnings)
+target_include_directories(entity-eater-server PUBLIC ${PROJECT_SOURCE_DIR}/../../common)
 target_link_libraries(entity-eater-server PRIVATE SocketWire)
 
 if(MSVC)

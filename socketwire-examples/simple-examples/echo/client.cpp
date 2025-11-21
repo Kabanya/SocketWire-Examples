@@ -1,13 +1,13 @@
-#include "i_socket.hpp"
-#include "socket_init.hpp"
-#include "socket_constants.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <memory>
 
-using namespace socketwire; //NOLINT
+#include "i_socket.hpp"
+#include "socket_init.hpp"
+#include "socket_constants.hpp"
 
+using namespace socketwire; //NOLINT
 
 class PrintHandler : public ISocketEventHandler
 {

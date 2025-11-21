@@ -7,11 +7,13 @@
 #include <chrono>
 #include <thread>
 
+#include "windows_defines.hpp"  // IWYU pragma: keep
+
 #include "protocol.h"
-#include "i_socket.hpp"
 #include "socket_init.hpp"
 #include "reliable_connection.hpp"
 #include "socket_poller.hpp"
+#include "protocol.h"
 
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 600;

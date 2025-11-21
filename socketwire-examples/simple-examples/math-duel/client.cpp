@@ -6,8 +6,9 @@
 #include "i_socket.hpp"
 #include "socket_init.hpp"
 #include "socket_constants.hpp"
-#include "math-duel-client.hpp"
 #include "bit_stream.hpp"
+
+#include "client.hpp"
 
 using namespace socketwire; //NOLINT
 

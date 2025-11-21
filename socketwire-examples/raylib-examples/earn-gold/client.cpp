@@ -2,23 +2,15 @@
 #include <unordered_map>
 #include <memory>
 
-// Prevent Windows GDI conflicts with raylib
-#if defined(_WIN32)
-    #define NOGDI
-    #define NOUSER
-#endif
+#include "windows_defines.hpp"  // IWYU pragma: keep
 
 #include "raylib.h"
 
-#if defined(_WIN32)
-    #undef DrawText
-    #undef Rectangle
-#endif
-#include "protocol.h"
 #include "i_socket.hpp"
 #include "socket_init.hpp"
 #include "reliable_connection.hpp"
 #include "socket_poller.hpp"
+#include "protocol.h"
 
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 600;

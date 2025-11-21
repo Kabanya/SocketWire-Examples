@@ -1,7 +1,3 @@
-#include "bit_stream.hpp"
-#include "socket_init.hpp"
-#include "socket_constants.hpp"
-
 #include <cstring>
 #include <iostream>
 #include <thread>
@@ -10,8 +6,12 @@
 #include <random>
 #include <memory>
 
-#include "math-duel-server.hpp"
+#include "bit_stream.hpp"
+#include "socket_init.hpp"
+#include "socket_constants.hpp"
 #include "i_socket.hpp"
+
+#include "server.hpp"
 
 using namespace socketwire; //NOLINT
 

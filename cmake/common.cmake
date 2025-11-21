@@ -3,6 +3,8 @@
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+include_directories(${PROJECT_SOURCE_DIR}/common)
+
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC") # cl and clang-cl
   add_compile_options(/W4 /WX
     # Selectively disable some insane warnings
