@@ -1,7 +1,5 @@
-cmake_minimum_required(VERSION 3.28)
-
-add_executable(math-duel-client ClientTestSocket.cpp ClientTestSocket.h)
-add_executable(math-duel-server ServerTestSocket.cpp ServerTestSocket.h)
+add_executable(math-duel-client math-duel-client.cpp math-duel-client.hpp)
+add_executable(math-duel-server math-duel-server.cpp math-duel-server.hpp)
 
 target_link_libraries(echo-server PRIVATE SocketWire)
 target_link_libraries(echo-client PRIVATE SocketWire)

@@ -1,20 +1,6 @@
 #include "bit_stream.hpp"
 #include "socket_init.hpp"
-#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/time.h>
-#include <netdb.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#endif
-
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
+#include "socket_constants.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -24,7 +10,7 @@
 #include <random>
 #include <memory>
 
-#include "ServerTestSocket.h"
+#include "math-duel-server.hpp"
 #include "i_socket.hpp"
 
 using namespace socketwire; //NOLINT
@@ -38,16 +24,8 @@ std::string client_to_string(const Client& client)
 {
   // Convert IPv4 address from host order to dotted decimal
   uint32_t hostAddr = client.addr.ipv4.hostOrderAddress;
-  char buf[INET_ADDRSTRLEN];
-#if defined(_WIN32)
-  struct in_addr addr;
-  addr.s_addr = htonl(hostAddr);
-  inet_ntop(AF_INET, &addr, buf, sizeof(buf));
-#else
-  struct in_addr addr;
-  addr.s_addr = htonl(hostAddr);
-  inet_ntoa(addr);
-#endif
+  char buf[16]; // INET_ADDRSTRLEN
+  SocketConstants::formatIPv4(hostAddr, buf, sizeof(buf));
   return std::string(buf) + ":" + std::to_string(client.port);
 }
 
@@ -369,7 +347,7 @@ int main()
     return 1;
   }
 
-  SocketAddress bindAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  SocketAddress bindAddr = SocketConstants::any();
   if (serverSocket->bind(bindAddr, port) != SocketError::None)
   {
     printf("cannot bind socket\n");

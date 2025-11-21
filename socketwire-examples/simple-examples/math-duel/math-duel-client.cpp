@@ -1,17 +1,3 @@
-#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <netdb.h>
-#include <fcntl.h>
-#include <unistd.h>
-#endif
-
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
-
 #include <cstdio>
 #include <iostream>
 #include <thread>
@@ -19,7 +5,8 @@
 
 #include "i_socket.hpp"
 #include "socket_init.hpp"
-#include "ClientTestSocket.h"
+#include "socket_constants.hpp"
+#include "math-duel-client.hpp"
 #include "bit_stream.hpp"
 
 using namespace socketwire; //NOLINT
@@ -128,14 +115,14 @@ int main()
     return 1;
   }
 
-  SocketAddress localAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  SocketAddress localAddr = SocketConstants::any();
   if (clientSocket->bind(localAddr, 0) != SocketError::None)
   {
     printf("Cannot bind socket\n");
     return 1;
   }
 
-  serverAddr = SocketAddress::fromIPv4(htonl(INADDR_LOOPBACK));
+  serverAddr = SocketConstants::loopback();
   std::uint16_t serverPort = 2025;
 
   std::cout << "Client is using port: " << clientSocket->localPort() << std::endl;

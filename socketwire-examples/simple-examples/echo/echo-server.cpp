@@ -1,17 +1,10 @@
 #include "i_socket.hpp"
 #include "socket_init.hpp"
+#include "socket_constants.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <memory>
-
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <netinet/in.h>
-#include <unistd.h>
-#endif
 
 using namespace socketwire; //NOLINT
 
@@ -54,7 +47,7 @@ int main()
 
   PrintHandler handler;
 
-  SocketAddress bindAddr = SocketAddress::fromIPv4(INADDR_ANY);
+  SocketAddress bindAddr = SocketConstants::any();
   if (server->bind(bindAddr, 40404) != SocketError::None)
   {
     std::cout << "Bind failed\n";
