@@ -1,0 +1,159 @@
+#include "entity.h"
+#include "mathUtils.h"
+#include "protocol.h"
+
+#include "server_connection_hub.hpp"
+#include "socketwire_example_utils.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <map>
+#include <random>
+#include <thread>
+#include <unordered_map>
+#include <vector>
+
+static std::vector<Entity> entities;
+static std::map<std::uint16_t, socketwire_examples::ServerConnectionHub::Client*> controlledMap;
+static std::unordered_map<socketwire_examples::ServerConnectionHub::Client*, std::uint32_t> cipherKeys;
+
+static std::uint16_t next_entity_id()
+{
+  std::uint16_t maxEid = entities.empty() ? invalid_entity : entities[0].eid;
+  for (const Entity& e : entities)
+    maxEid = std::max(maxEid, e.eid);
+  return static_cast<std::uint16_t>(maxEid + 1);
+}
+
+static void broadcast_entity(socketwire_examples::ServerConnectionHub& hub, const Entity& ent)
+{
+  for (auto* client : hub.clients())
+    if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+      send_new_entity(client->connection.get(), ent);
+}
+
+static void on_join(socketwire_examples::ServerConnectionHub& hub,
+                    socketwire_examples::ServerConnectionHub::Client& client)
+{
+  for (const Entity& ent : entities)
+    send_new_entity(client.connection.get(), ent);
+
+  const std::uint16_t newEid = next_entity_id();
+  const std::uint32_t color = 0xff000000u +
+                              0x00440000u * static_cast<std::uint32_t>(std::rand() % 5) +
+                              0x00004400u * static_cast<std::uint32_t>(std::rand() % 5) +
+                              0x00000044u * static_cast<std::uint32_t>(std::rand() % 5);
+
+  Entity ent;
+  ent.color = color;
+  ent.x = static_cast<float>(std::rand() % 4) * 2.f;
+  ent.y = static_cast<float>(std::rand() % 4) * 2.f;
+  ent.speed = 0.f;
+  ent.ori = (std::rand() / static_cast<float>(RAND_MAX)) * 3.141592654f;
+  ent.thr = 0.f;
+  ent.steer = 0.f;
+  ent.eid = newEid;
+  entities.push_back(ent);
+
+  controlledMap[newEid] = &client;
+  broadcast_entity(hub, ent);
+  send_set_controlled_entity(client.connection.get(), newEid);
+
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  static std::uniform_int_distribution<std::uint32_t> distrib(0);
+  const std::uint32_t key = distrib(gen);
+  cipherKeys[&client] = key;
+  send_cipher_key(client.connection.get(), key);
+}
+
+static void on_input(const void* data, std::size_t size)
+{
+  std::uint16_t eid = invalid_entity;
+  float thr = 0.f;
+  float steer = 0.f;
+  deserialize_entity_input(data, size, eid, thr, steer);
+
+  for (Entity& e : entities)
+  {
+    if (e.eid == eid)
+    {
+      e.thr = thr;
+      e.steer = steer;
+      return;
+    }
+  }
+}
+
+int main()
+{
+  auto socket = socketwire_examples::createUdpSocket(10131);
+  if (socket == nullptr)
+    return 1;
+
+  socketwire::ReliableConnectionConfig cfg;
+  cfg.numChannels = 2;
+  socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
+
+  hub.setConnectedCallback([](auto& client)
+  {
+    cipherKeys[&client] = 0;
+    std::printf("Connection with %u:%u established\n", client.address.ipv4.hostOrderAddress, client.port);
+  });
+
+  hub.setDisconnectedCallback([](auto& client)
+  {
+    std::printf("Disconnected %u:%u\n", client.address.ipv4.hostOrderAddress, client.port);
+    cipherKeys.erase(&client);
+    for (auto& entry : controlledMap)
+      if (entry.second == &client)
+        entry.second = nullptr;
+  });
+
+  hub.setPacketCallback([&](auto& client, std::uint8_t, const void* data, std::size_t size, bool)
+  {
+    switch (get_packet_type(data, size))
+    {
+      case E_CLIENT_TO_SERVER_JOIN:
+        on_join(hub, client);
+        break;
+      case E_CLIENT_TO_SERVER_INPUT:
+      {
+        const auto keyIt = cipherKeys.find(&client);
+        const std::uint32_t key = keyIt == cipherKeys.end() ? 0 : keyIt->second;
+        const std::vector<std::uint8_t> deciphered = decipher_data(data, size, key);
+        on_input(deciphered.data(), deciphered.size());
+        break;
+      }
+      case E_SERVER_TO_CLIENT_NEW_ENTITY:
+      case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
+      case E_SERVER_TO_CLIENT_SNAPSHOT:
+      case E_SERVER_TO_CLIENT_KEY:
+        break;
+    }
+  });
+
+  auto lastTime = std::chrono::steady_clock::now();
+  while (true)
+  {
+    const auto curTime = std::chrono::steady_clock::now();
+    const float dt =
+      std::chrono::duration_cast<std::chrono::milliseconds>(curTime - lastTime).count() * 0.001f;
+    lastTime = curTime;
+
+    hub.poll();
+    hub.update();
+
+    for (Entity& e : entities)
+    {
+      simulate_entity(e, dt);
+      for (auto* client : hub.clients())
+        if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+          send_snapshot(client->connection.get(), e.eid, e.x, e.y, e.ori);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+}
