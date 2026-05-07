@@ -1,6 +1,12 @@
 include(${PROJECT_SOURCE_DIR}/cmake/common.cmake)
 
 add_subdirectory(header-demos)
+add_subdirectory(address-demo)
+add_subdirectory(safe-bitstream-demo)
 add_subdirectory(echo)
 add_subdirectory(math-duel)
 add_subdirectory(packet-stream)
+add_subdirectory(channels-demo)
+add_subdirectory(large-message-demo)
+add_subdirectory(stats-window-demo)
+add_subdirectory(crypto-handshake-demo)

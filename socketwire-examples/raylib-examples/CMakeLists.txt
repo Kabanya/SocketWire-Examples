@@ -1,8 +1,14 @@
 include(${PROJECT_SOURCE_DIR}/cmake/common.cmake)
 
-add_subdirectory(entity-eater)
-add_subdirectory(earn-gold)
-add_subdirectory(mipt-w2)
-add_subdirectory(mipt-w5)
-add_subdirectory(mipt-w7)
-add_subdirectory(mipt-w10)
+foreach(example
+  entity-eater
+  lobby-dots
+  prediction-ships
+  ship-swarm
+  cipher-ships
+  projectile-arena
+)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${example}/CMakeLists.txt")
+    add_subdirectory(${example})
+  endif()
+endforeach()
