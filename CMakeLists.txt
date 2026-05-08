@@ -22,6 +22,17 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     )
 endif()
 
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+  add_custom_target(copy_compile_commands ALL
+    COMMAND
+      ${CMAKE_COMMAND}
+      "-DSOURCE_FILE=${CMAKE_BINARY_DIR}/compile_commands.json"
+      "-DDESTINATION_FILE=${CMAKE_SOURCE_DIR}/compile_commands.json"
+      -P "${CMAKE_SOURCE_DIR}/cmake/copy_compile_commands.cmake"
+    COMMENT "Copying compile_commands.json to source directory"
+    VERBATIM)
+endif()
+
 # For enabling debug stuff in "dev" builds, which are RelWithDebInfo.
 if (NOT CMAKE_BUILD_TYPE STREQUAL Release)
   set(SOCKETWIRE_DEBUG ON)
