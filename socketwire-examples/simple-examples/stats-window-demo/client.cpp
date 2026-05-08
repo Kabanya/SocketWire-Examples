@@ -34,7 +34,7 @@ public:
     }
 
     ++acks;
-    std::printf("user ack for sample #%u (%u/%u)\n", *id, acks, stats_window_demo::kPacketCount);
+    std::printf("user ack for sample #%u (%u/%u)\n", *id, acks, stats_window_demo::K_PACKET_COUNT);
   }
 
   void onUnreliableReceived(std::uint8_t, const void*, std::size_t) override {}
@@ -68,7 +68,7 @@ int main()
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), stats_window_demo::kPort);
+  connection.connect(SocketConstants::loopback(), stats_window_demo::K_PORT);
 
   const auto started = std::chrono::steady_clock::now();
   auto lastStats = started;
@@ -78,7 +78,7 @@ int main()
   {
     connection.tick();
 
-    while (handler.connected && nextSample < stats_window_demo::kPacketCount)
+    while (handler.connected && nextSample < stats_window_demo::K_PACKET_COUNT)
     {
       auto sample = stats_window_demo::make_sample(nextSample);
       if (!connection.sendReliable(0, sample))
@@ -100,7 +100,7 @@ int main()
                   nextSample);
     }
 
-    if (handler.acks >= stats_window_demo::kPacketCount)
+    if (handler.acks >= stats_window_demo::K_PACKET_COUNT)
       break;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -114,5 +114,5 @@ int main()
               connection.getSendWindow(),
               connection.getRTT());
   std::printf("stats-window-demo finished with %u user-level acks\n", handler.acks);
-  return handler.acks == stats_window_demo::kPacketCount ? 0 : 1;
+  return handler.acks == stats_window_demo::K_PACKET_COUNT ? 0 : 1;
 }

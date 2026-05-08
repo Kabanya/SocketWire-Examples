@@ -36,7 +36,7 @@ struct EntityState
 
 struct Snapshot
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float x = 0.f;
   float y = 0.f;
   float ori = 0.f;
@@ -49,20 +49,20 @@ struct Snapshot
 
 static std::vector<Entity> entities;
 static std::unordered_map<std::uint16_t, std::size_t> indexMap;
-static std::uint16_t myEntity = invalid_entity;
+static std::uint16_t myEntity = INVALID_ENTITY;
 static std::unordered_map<std::uint16_t, std::vector<Snapshot>> snapshotHistory;
-static constexpr std::chrono::milliseconds interpolationTime{200};
+static constexpr std::chrono::milliseconds INTERPOLATION_TIME{200};
 
 static std::deque<InputCommand> inputHistory;
 static std::uint32_t clientFrameCounter = 0;
 static std::uint32_t lastAcknowledgedFrame = 0;
 static bool pendingCorrection = false;
 static Snapshot serverState;
-static constexpr float predictionErrorThreshold = 0.5f;
+static constexpr float PREDICTION_ERROR_THRESHOLD = 0.5f;
 static std::uint32_t estimatedServerTimeMsec = 0;
 
 static std::deque<EntityState> stateHistory;
-static constexpr std::size_t stateHistoryLimit = 200;
+static constexpr std::size_t STATE_HISTORY_LIMIT = 200;
 
 static void on_new_entity_packet(const void* data, std::size_t size)
 {
@@ -92,7 +92,7 @@ static void get_entity(std::uint16_t eid, Callable callable)
 
 static void on_snapshot(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float x = 0.f;
   float y = 0.f;
   float ori = 0.f;
@@ -118,7 +118,7 @@ static void on_snapshot(const void* data, std::size_t size)
       const float dx = e.x - x;
       const float dy = e.y - y;
       const float posError = std::sqrt(dx * dx + dy * dy);
-      if (posError > predictionErrorThreshold)
+      if (posError > PREDICTION_ERROR_THRESHOLD)
         pendingCorrection = true;
     });
   }
@@ -134,7 +134,7 @@ static void on_snapshot(const void* data, std::size_t size)
 
 static void process_snapshot_history(const TimePoint& currentTime)
 {
-  const TimePoint targetTime = currentTime - interpolationTime;
+  const TimePoint targetTime = currentTime - INTERPOLATION_TIME;
 
   for (auto& [eid, snapshots] : snapshotHistory)
   {
@@ -212,15 +212,15 @@ static void on_time(const void* data, std::size_t size, const socketwire::Reliab
 
 static void draw_entity(const Entity& e)
 {
-  constexpr float shipLen = 3.f;
-  constexpr float shipWidth = 2.f;
+  constexpr float SHIP_LEN = 3.f;
+  constexpr float SHIP_WIDTH = 2.f;
   const Vector2 fwd = Vector2{std::cos(e.ori), std::sin(e.ori)};
   const Vector2 left = Vector2{-fwd.y, fwd.x};
-  DrawTriangle(Vector2{e.x + fwd.x * shipLen * 0.5f, e.y + fwd.y * shipLen * 0.5f},
-               Vector2{e.x - fwd.x * shipLen * 0.5f - left.x * shipWidth * 0.5f,
-                       e.y - fwd.y * shipLen * 0.5f - left.y * shipWidth * 0.5f},
-               Vector2{e.x - fwd.x * shipLen * 0.5f + left.x * shipWidth * 0.5f,
-                       e.y - fwd.y * shipLen * 0.5f + left.y * shipWidth * 0.5f},
+  DrawTriangle(Vector2{e.x + fwd.x * SHIP_LEN * 0.5f, e.y + fwd.y * SHIP_LEN * 0.5f},
+               Vector2{e.x - fwd.x * SHIP_LEN * 0.5f - left.x * SHIP_WIDTH * 0.5f,
+                       e.y - fwd.y * SHIP_LEN * 0.5f - left.y * SHIP_WIDTH * 0.5f},
+               Vector2{e.x - fwd.x * SHIP_LEN * 0.5f + left.x * SHIP_WIDTH * 0.5f,
+                       e.y - fwd.y * SHIP_LEN * 0.5f + left.y * SHIP_WIDTH * 0.5f},
                GetColor(e.color));
 }
 
@@ -275,7 +275,7 @@ private:
 
 static void simulate_world(socketwire::ReliableConnection& connection)
 {
-  if (myEntity == invalid_entity)
+  if (myEntity == INVALID_ENTITY)
     return;
 
   const bool left = IsKeyDown(KEY_LEFT);
@@ -340,7 +340,7 @@ static void simulate_world(socketwire::ReliableConnection& connection)
     }
 
     stateHistory.push_back(EntityState{e.x, e.y, e.ori, e.vx, e.vy, e.omega, clientFrameCounter});
-    if (stateHistory.size() > stateHistoryLimit)
+    if (stateHistory.size() > STATE_HISTORY_LIMIT)
       stateHistory.pop_front();
   });
 }
@@ -356,7 +356,7 @@ static void draw_world(const Camera2D& camera)
 
     EndMode2D();
 
-    if (myEntity != invalid_entity)
+    if (myEntity != INVALID_ENTITY)
     {
       char buffer[320]{};
       get_entity(myEntity, [&](const Entity& e)

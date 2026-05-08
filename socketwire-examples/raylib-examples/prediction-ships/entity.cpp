@@ -1,7 +1,7 @@
 #include "entity.h"
 #include "mathUtils.h"
 
-constexpr float worldSize = 30.f;
+constexpr float WORLD_SIZE = 30.f;
 
 float tile_val(float val, float border)
 {
@@ -25,7 +25,7 @@ void simulate_entity(Entity &e, float dt)
   e.x += e.vx * dt;
   e.y += e.vy * dt;
 
-  e.x = tile_val(e.x, worldSize);
-  e.y = tile_val(e.y, worldSize);
+  e.x = tile_val(e.x, WORLD_SIZE);
+  e.y = tile_val(e.y, WORLD_SIZE);
 }
 

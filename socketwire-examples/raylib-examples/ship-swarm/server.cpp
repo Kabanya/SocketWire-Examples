@@ -7,17 +7,36 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <map>
+#include <random>
 #include <thread>
 #include <vector>
 
 static std::vector<Entity> entities;
 static std::map<std::uint16_t, socketwire_examples::ServerConnectionHub::Client*> controlledMap;
 
+static std::mt19937& random_generator()
+{
+  static std::random_device random_device;
+  static std::mt19937 generator(random_device());
+  return generator;
+}
+
+static int random_int(int min, int max)
+{
+  std::uniform_int_distribution<int> distribution(min, max);
+  return distribution(random_generator());
+}
+
+static float random_orientation()
+{
+  std::uniform_real_distribution<float> distribution(0.f, 3.141592654f);
+  return distribution(random_generator());
+}
+
 static std::uint16_t next_entity_id()
 {
-  std::uint16_t maxEid = entities.empty() ? invalid_entity : entities[0].eid;
+  std::uint16_t maxEid = entities.empty() ? INVALID_ENTITY : entities[0].eid;
   for (const Entity& e : entities)
     maxEid = std::max(maxEid, e.eid);
   return static_cast<std::uint16_t>(maxEid + 1);
@@ -26,22 +45,22 @@ static std::uint16_t next_entity_id()
 static Entity make_ship(std::uint16_t eid, bool serverControlled)
 {
   const std::uint32_t color = 0xff000000u +
-                              0x00440000u * static_cast<std::uint32_t>(std::rand() % 5) +
-                              0x00004400u * static_cast<std::uint32_t>(std::rand() % 5) +
-                              0x00000044u * static_cast<std::uint32_t>(std::rand() % 5);
+                              0x00440000u * static_cast<std::uint32_t>(random_int(0, 4)) +
+                              0x00004400u * static_cast<std::uint32_t>(random_int(0, 4)) +
+                              0x00000044u * static_cast<std::uint32_t>(random_int(0, 4));
 
   Entity ent;
   ent.color = color;
   ent.serverControlled = serverControlled;
   ent.x = serverControlled
-    ? static_cast<float>(std::rand() % static_cast<int>(worldSize * 2.f)) - worldSize
-    : static_cast<float>(std::rand() % 4) * 5.f;
+    ? static_cast<float>(random_int(0, static_cast<int>(WORLD_SIZE * 2.f) - 1)) - WORLD_SIZE
+    : static_cast<float>(random_int(0, 3)) * 5.f;
   ent.y = serverControlled
-    ? static_cast<float>(std::rand() % static_cast<int>(worldSize * 2.f)) - worldSize
-    : static_cast<float>(std::rand() % 4) * 5.f;
+    ? static_cast<float>(random_int(0, static_cast<int>(WORLD_SIZE * 2.f) - 1)) - WORLD_SIZE
+    : static_cast<float>(random_int(0, 3)) * 5.f;
   ent.vx = 0.f;
   ent.vy = 0.f;
-  ent.ori = (std::rand() / static_cast<float>(RAND_MAX)) * 3.141592654f;
+  ent.ori = random_orientation();
   ent.omega = 0.f;
   ent.thr = 0.f;
   ent.steer = 0.f;
@@ -82,7 +101,7 @@ static void create_server_entity(socketwire_examples::ServerConnectionHub& hub)
 
 static void on_input(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float thr = 0.f;
   float steer = 0.f;
   deserialize_entity_input(data, size, eid, thr, steer);
@@ -100,10 +119,10 @@ static void on_input(const void* data, std::size_t size)
 
 static void update_ai(Entity& e)
 {
-  if (std::rand() % 100 == 0)
+  if (random_int(0, 99) == 0)
     e.thr = e.thr > 0.f ? 0.f : 1.f;
-  if (std::rand() % 10 == 0)
-    e.steer = e.steer != 0.f ? 0.f : static_cast<float>((std::rand() % 2) * 2 - 1);
+  if (random_int(0, 9) == 0)
+    e.steer = e.steer != 0.f ? 0.f : static_cast<float>(random_int(0, 1) * 2 - 1);
 }
 
 static void simulate_world(socketwire_examples::ServerConnectionHub& hub, float dt)
@@ -163,8 +182,8 @@ int main()
     }
   });
 
-  constexpr std::size_t numShips = 100;
-  for (std::size_t i = 0; i < numShips; ++i)
+  constexpr std::size_t NUM_SHIPS = 100;
+  for (std::size_t i = 0; i < NUM_SHIPS; ++i)
     create_server_entity(hub);
 
   const auto start = std::chrono::steady_clock::now();

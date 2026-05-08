@@ -35,7 +35,7 @@ public:
     if (!receivedSize || !expectedChecksum || !actualChecksum)
       return;
 
-    ackOk = *receivedSize == large_message_demo::kPayloadSize && *expectedChecksum == *actualChecksum;
+    ackOk = *receivedSize == large_message_demo::K_PAYLOAD_SIZE && *expectedChecksum == *actualChecksum;
     std::printf("server ack: size=%u checksum=%08x status=%s\n",
                 *receivedSize,
                 *actualChecksum,
@@ -71,7 +71,7 @@ int main()
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), large_message_demo::kPort);
+  connection.connect(SocketConstants::loopback(), large_message_demo::K_PORT);
 
   const auto started = std::chrono::steady_clock::now();
   bool sent = false;

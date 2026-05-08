@@ -5,10 +5,17 @@
 #include "reliable_connection.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
+#include <random>
 
 static std::uint32_t xorCipherKey = 0;
+
+static std::mt19937& random_generator()
+{
+  static std::random_device random_device;
+  static std::mt19937 generator(random_device());
+  return generator;
+}
 
 static std::vector<std::uint8_t> copy_stream(const socketwire::BitStream& bs)
 {
@@ -26,7 +33,12 @@ static void xor_packet_data(std::vector<std::uint8_t>& packet, std::uint32_t key
 static void fuzz_packet_data(std::vector<std::uint8_t>& packet)
 {
   if (!packet.empty())
-    packet[static_cast<std::size_t>(std::rand()) % packet.size()] = static_cast<std::uint8_t>(std::rand());
+  {
+    std::uniform_int_distribution<std::size_t> index_distribution(0, packet.size() - 1);
+    std::uniform_int_distribution<int> byte_distribution(0, 255);
+    packet[index_distribution(random_generator())] =
+      static_cast<std::uint8_t>(byte_distribution(random_generator()));
+  }
 }
 
 void send_join(socketwire::ReliableConnection* connection)

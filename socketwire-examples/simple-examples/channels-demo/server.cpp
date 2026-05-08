@@ -59,7 +59,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), channels_demo::kPort) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), channels_demo::K_PORT) != SocketError::None)
   {
     std::printf("Cannot bind channels-demo server\n");
     return 1;
@@ -78,7 +78,7 @@ int main()
     handle_packet(client, data, size);
   });
 
-  std::printf("channels-demo server listening on port %u\n", channels_demo::kPort);
+  std::printf("channels-demo server listening on port %u\n", channels_demo::K_PORT);
   while (true)
   {
     hub.poll();

@@ -15,11 +15,11 @@
 
 static std::vector<Entity> entities;
 static std::unordered_map<std::uint16_t, std::size_t> indexMap;
-static std::uint16_t myEntity = invalid_entity;
+static std::uint16_t myEntity = INVALID_ENTITY;
 
 static int gameTimeRemaining = 60;
 static bool gameOver = false;
-static std::uint16_t winnerEid = invalid_entity;
+static std::uint16_t winnerEid = INVALID_ENTITY;
 static int winnerScore = 0;
 
 static void on_new_entity_packet(const void* data, std::size_t size)
@@ -48,7 +48,7 @@ static void get_entity(std::uint16_t eid, Callable callable)
 
 static void on_snapshot(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float x = 0.f;
   float y = 0.f;
   float entitySize = 0.f;
@@ -63,8 +63,8 @@ static void on_snapshot(const void* data, std::size_t size)
 
 static void on_entity_devoured(const void* data, std::size_t size)
 {
-  std::uint16_t devouredEid = invalid_entity;
-  std::uint16_t devourerEid = invalid_entity;
+  std::uint16_t devouredEid = INVALID_ENTITY;
+  std::uint16_t devourerEid = INVALID_ENTITY;
   float newSize = 0.f;
   float newX = 0.f;
   float newY = 0.f;
@@ -80,7 +80,7 @@ static void on_entity_devoured(const void* data, std::size_t size)
 
 static void on_score_update(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   int score = 0;
   deserialize_score_update(data, size, eid, score);
   get_entity(eid, [&](Entity& e) { e.score = score; });
@@ -95,7 +95,7 @@ static void on_game_time(const void* data, std::size_t size)
 
 static void on_game_over(const void* data, std::size_t size)
 {
-  std::uint16_t wEid = invalid_entity;
+  std::uint16_t wEid = INVALID_ENTITY;
   int wScore = 0;
   deserialize_game_over(data, size, wEid, wScore);
 
@@ -204,7 +204,7 @@ int main()
       sentJoin = true;
     }
 
-    if (myEntity != invalid_entity)
+    if (myEntity != INVALID_ENTITY)
     {
       const bool left = IsKeyDown(KEY_LEFT);
       const bool right = IsKeyDown(KEY_RIGHT);
@@ -234,7 +234,7 @@ int main()
         }
       EndMode2D();
 
-      if (myEntity != invalid_entity)
+      if (myEntity != INVALID_ENTITY)
       {
         get_entity(myEntity, [&](Entity& e)
         {

@@ -22,11 +22,10 @@ struct PackedFloat
   T packedVal;
 
   PackedFloat(float v, float lo, float hi) { pack(v, lo, hi); }
-  PackedFloat(T compressed_val) : packedVal(compressed_val) {}
+  explicit PackedFloat(T compressed_val) : packedVal(compressed_val) {}
 
   void pack(float v, float lo, float hi) { packedVal = pack_float<T>(v, lo, hi, num_bits); }
   float unpack(float lo, float hi) { return unpack_float<T>(packedVal, lo, hi, num_bits); }
 };
 
 typedef PackedFloat<uint8_t, 4> float4bitsQuantized;
-

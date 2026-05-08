@@ -7,8 +7,8 @@
 namespace stats_window_demo
 {
 
-constexpr std::uint16_t kPort = 53476;
-constexpr std::uint32_t kPacketCount = 24;
+constexpr std::uint16_t K_PORT = 53476;
+constexpr std::uint32_t K_PACKET_COUNT = 24;
 
 enum class MessageType : std::uint8_t
 {

@@ -8,7 +8,7 @@
 namespace projectile_arena
 {
 
-constexpr std::uint16_t kPort = 53477;
+constexpr std::uint16_t K_PORT = 53477;
 
 enum class MessageType : std::uint8_t
 {

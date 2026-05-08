@@ -86,7 +86,7 @@ int main()
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), channels_demo::kPort);
+  connection.connect(SocketConstants::loopback(), channels_demo::K_PORT);
 
   const auto started = std::chrono::steady_clock::now();
   auto lastMove = started;

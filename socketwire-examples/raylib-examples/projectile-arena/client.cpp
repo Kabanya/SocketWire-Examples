@@ -67,17 +67,17 @@ private:
   ClientState& state_;
 };
 
-Color player_color(std::uint16_t id, std::uint16_t localId)
+Color player_color(std::uint16_t id, std::uint16_t local_id)
 {
-  if (id == localId)
+  if (id == local_id)
     return Color{20, 140, 220, 255};
-  static constexpr Color palette[] = {
+  static constexpr Color PALETTE[] = {
     Color{218, 86, 64, 255},
     Color{52, 160, 112, 255},
     Color{178, 118, 46, 255},
     Color{142, 92, 190, 255},
   };
-  return palette[id % 4];
+  return PALETTE[id % 4];
 }
 
 Vector2 local_player_position(const ClientState& state)
@@ -115,7 +115,7 @@ int main()
   ClientState state;
   ClientHandler handler(state);
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), projectile_arena::kPort);
+  connection.connect(SocketConstants::loopback(), projectile_arena::K_PORT);
 
   InitWindow(900, 600, "SocketWire projectile arena");
   SetTargetFPS(60);

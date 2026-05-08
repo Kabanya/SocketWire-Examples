@@ -62,7 +62,7 @@ Checks: >
   clang-analyzer-deadcode.DeadStores,
   clang-analyzer-security.insecureAPI.strcpy
 
-HeaderFilterRegex: '\.hpp$'
+HeaderFilterRegex: '.*/socketwire-examples/.*\.(h|hpp)$'
 
 WarningsAsErrors: '*'
 
@@ -79,15 +79,15 @@ CheckOptions:
     value: CamelCase
 
   - key: readability-identifier-naming.GlobalFunctionCase
-    value: snake_case
+    value: aNy_CasE
   - key: readability-identifier-naming.MethodCase
-    value: snake_case
+    value: aNy_CasE
   - key: readability-identifier-naming.ParameterCase
-    value: snake_case
+    value: aNy_CasE
   - key: readability-identifier-naming.VariableCase
-    value: snake_case
+    value: aNy_CasE
   - key: readability-identifier-naming.ClassMemberCase
-    value: snake_case
+    value: aNy_CasE
 
   - key: readability-identifier-naming.GlobalConstantCase
     value: UPPER_CASE

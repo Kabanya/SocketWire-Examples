@@ -16,7 +16,7 @@
 
 static std::vector<Entity> entities;
 static std::unordered_map<std::uint16_t, std::size_t> indexMap;
-static std::uint16_t myEntity = invalid_entity;
+static std::uint16_t myEntity = INVALID_ENTITY;
 static std::uint32_t totalInData = 0;
 static std::uint32_t totalOutData = 0;
 static std::uint32_t serverTimeMsec = 0;
@@ -61,7 +61,7 @@ static void get_entity(std::uint16_t eid, Callable callable)
 
 static void on_snapshot(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float x = 0.f;
   float y = 0.f;
   float ori = 0.f;
@@ -79,37 +79,37 @@ static void on_time(const void* data, std::size_t size)
   deserialize_time_msec(data, size, serverTimeMsec);
 }
 
-static void draw_ship(float shipLen,
-                      float shipWidth,
+static void draw_ship(float ship_len,
+                      float ship_width,
                       float x,
                       float y,
                       const Vector2& fwd,
                       const Vector2& left,
                       Color color)
 {
-  DrawTriangle(Vector2{x + fwd.x * shipLen * 0.5f, y + fwd.y * shipLen * 0.5f},
-               Vector2{x - fwd.x * shipLen * 0.5f - left.x * shipWidth * 0.5f,
-                       y - fwd.y * shipLen * 0.5f - left.y * shipWidth * 0.5f},
-               Vector2{x - fwd.x * shipLen * 0.5f + left.x * shipWidth * 0.5f,
-                       y - fwd.y * shipLen * 0.5f + left.y * shipWidth * 0.5f},
+  DrawTriangle(Vector2{x + fwd.x * ship_len * 0.5f, y + fwd.y * ship_len * 0.5f},
+               Vector2{x - fwd.x * ship_len * 0.5f - left.x * ship_width * 0.5f,
+                       y - fwd.y * ship_len * 0.5f - left.y * ship_width * 0.5f},
+               Vector2{x - fwd.x * ship_len * 0.5f + left.x * ship_width * 0.5f,
+                       y - fwd.y * ship_len * 0.5f + left.y * ship_width * 0.5f},
                color);
 }
 
 static void draw_entity(const Entity& e)
 {
-  constexpr float shipLen = 3.f;
-  constexpr float shipWidth = 2.f;
+  constexpr float SHIP_LEN = 3.f;
+  constexpr float SHIP_WIDTH = 2.f;
   const Vector2 fwd = Vector2{std::cos(e.ori), std::sin(e.ori)};
   const Vector2 left = Vector2{-fwd.y, fwd.x};
   const Vector3 hsv = ColorToHSV(GetColor(e.color));
-  draw_ship(shipLen + 0.4f,
-            shipWidth + 0.4f,
+  draw_ship(SHIP_LEN + 0.4f,
+            SHIP_WIDTH + 0.4f,
             e.x,
             e.y,
             fwd,
             left,
             ColorFromHSV(static_cast<float>(static_cast<int>(hsv.x + 120.f) % 360), 1.f, 1.f));
-  draw_ship(shipLen, shipWidth, e.x, e.y, fwd, left, ColorFromHSV(hsv.x, hsv.y, hsv.z));
+  draw_ship(SHIP_LEN, SHIP_WIDTH, e.x, e.y, fwd, left, ColorFromHSV(hsv.x, hsv.y, hsv.z));
 }
 
 class ClientHandler final : public socketwire::IReliableConnectionHandler
@@ -157,7 +157,7 @@ private:
 
 static void simulate_world(socketwire::ReliableConnection& connection)
 {
-  if (myEntity == invalid_entity)
+  if (myEntity == INVALID_ENTITY)
     return;
 
   const bool left = IsKeyDown(KEY_LEFT);
@@ -180,21 +180,21 @@ static void draw_world(const Camera2D& camera, const BandwidthAccumulator& bw)
     ClearBackground(DARKGRAY);
     BeginMode2D(camera);
 
-      DrawRectangleLines(-worldSize, -worldSize, 2.f * worldSize, 2.f * worldSize, WHITE);
+      DrawRectangleLines(-WORLD_SIZE, -WORLD_SIZE, 2.f * WORLD_SIZE, 2.f * WORLD_SIZE, WHITE);
 
-      constexpr std::size_t numGrid = 10;
-      for (std::size_t y = 1; y < numGrid; ++y)
-        DrawLine(-worldSize,
-                 -worldSize + 2.f * worldSize * (static_cast<float>(y) / numGrid),
-                 worldSize,
-                 -worldSize + 2.f * worldSize * (static_cast<float>(y) / numGrid),
+      constexpr std::size_t NUM_GRID = 10;
+      for (std::size_t y = 1; y < NUM_GRID; ++y)
+        DrawLine(-WORLD_SIZE,
+                 -WORLD_SIZE + 2.f * WORLD_SIZE * (static_cast<float>(y) / NUM_GRID),
+                 WORLD_SIZE,
+                 -WORLD_SIZE + 2.f * WORLD_SIZE * (static_cast<float>(y) / NUM_GRID),
                  GetColor(0xffffffff));
 
-      for (std::size_t x = 1; x < numGrid; ++x)
-        DrawLine(-worldSize + 2.f * worldSize * (static_cast<float>(x) / numGrid),
-                 -worldSize,
-                 -worldSize + 2.f * worldSize * (static_cast<float>(x) / numGrid),
-                 worldSize,
+      for (std::size_t x = 1; x < NUM_GRID; ++x)
+        DrawLine(-WORLD_SIZE + 2.f * WORLD_SIZE * (static_cast<float>(x) / NUM_GRID),
+                 -WORLD_SIZE,
+                 -WORLD_SIZE + 2.f * WORLD_SIZE * (static_cast<float>(x) / NUM_GRID),
+                 WORLD_SIZE,
                  GetColor(0xffffffff));
 
       for (const Entity& e : entities)
@@ -208,7 +208,7 @@ static void draw_world(const Camera2D& camera, const BandwidthAccumulator& bw)
 
 static void update_camera(Camera2D& camera)
 {
-  if (myEntity != invalid_entity)
+  if (myEntity != INVALID_ENTITY)
   {
     get_entity(myEntity, [&](Entity& e)
     {
@@ -221,14 +221,14 @@ static void update_camera(Camera2D& camera)
 
 static void update_bandwidth(float dt, BandwidthAccumulator& accum)
 {
-  constexpr float windowSize = 1.f;
+  constexpr float WINDOW_SIZE = 1.f;
   accum.curTime += dt;
   accum.inData.emplace_back(totalInData, accum.curTime);
   accum.outData.emplace_back(totalOutData, accum.curTime);
 
   auto eraseOld = [&](std::vector<std::pair<std::uint32_t, float>>& data)
   {
-    while (!data.empty() && data.front().second < accum.curTime - windowSize)
+    while (!data.empty() && data.front().second < accum.curTime - WINDOW_SIZE)
       data.erase(data.begin());
   };
   eraseOld(accum.inData);

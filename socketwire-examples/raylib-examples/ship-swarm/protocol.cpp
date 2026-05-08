@@ -52,8 +52,8 @@ void send_snapshot(socketwire::ReliableConnection* connection, std::uint16_t eid
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SNAPSHOT);
   bs.write<std::uint16_t>(eid);
 
-  const PositionXQuantized xPacked(x, -worldSize, worldSize);
-  const PositionYQuantized yPacked(y, -worldSize, worldSize);
+  const PositionXQuantized xPacked(x, -WORLD_SIZE, WORLD_SIZE);
+  const PositionYQuantized yPacked(y, -WORLD_SIZE, WORLD_SIZE);
   const std::uint8_t oriPacked = pack_float<std::uint8_t>(ori, -PI, PI, 8);
   bs.write<std::uint16_t>(xPacked.packedVal);
   bs.write<std::uint16_t>(yPacked.packedVal);
@@ -103,11 +103,11 @@ void deserialize_entity_input(const void* data, std::size_t size, std::uint16_t&
   std::uint8_t thrSteerPacked = 0;
   bs.read<std::uint8_t>(thrSteerPacked);
 
-  static const std::uint8_t neutralPackedValue = pack_float<std::uint8_t>(0.f, -1.f, 1.f, 4);
+  static const std::uint8_t NEUTRAL_PACKED_VALUE = pack_float<std::uint8_t>(0.f, -1.f, 1.f, 4);
   float4bitsQuantized thrPacked(thrSteerPacked >> 4);
   float4bitsQuantized steerPacked(thrSteerPacked & 0x0f);
-  thr = thrPacked.packedVal == neutralPackedValue ? 0.f : thrPacked.unpack(-1.f, 1.f);
-  steer = steerPacked.packedVal == neutralPackedValue ? 0.f : steerPacked.unpack(-1.f, 1.f);
+  thr = thrPacked.packedVal == NEUTRAL_PACKED_VALUE ? 0.f : thrPacked.unpack(-1.f, 1.f);
+  steer = steerPacked.packedVal == NEUTRAL_PACKED_VALUE ? 0.f : steerPacked.unpack(-1.f, 1.f);
 }
 
 void deserialize_snapshot(const void* data, std::size_t size, std::uint16_t& eid, float& x, float& y, float& ori)
@@ -126,8 +126,8 @@ void deserialize_snapshot(const void* data, std::size_t size, std::uint16_t& eid
 
   PositionXQuantized xPackedVal(xPacked);
   PositionYQuantized yPackedVal(yPacked);
-  x = xPackedVal.unpack(-worldSize, worldSize);
-  y = yPackedVal.unpack(-worldSize, worldSize);
+  x = xPackedVal.unpack(-WORLD_SIZE, WORLD_SIZE);
+  y = yPackedVal.unpack(-WORLD_SIZE, WORLD_SIZE);
   ori = unpack_float<std::uint8_t>(oriPacked, -PI, PI, 8);
 }
 

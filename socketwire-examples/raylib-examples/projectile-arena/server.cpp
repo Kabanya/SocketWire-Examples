@@ -62,7 +62,7 @@ PlayerState& ensure_player(Client& client)
   player.id = id;
   player.client = &client;
   player.x = 120.0f + static_cast<float>((id - 1) % 6) * 90.0f;
-  player.y = 160.0f + static_cast<float>((id - 1) / 6) * 90.0f;
+  player.y = 160.0f + (static_cast<float>(id - 1) / 6.0f) * 90.0f;
   auto inserted = players.emplace(&client, player).first;
   std::printf("player %u joined from port %u\n", id, client.port);
 
@@ -203,7 +203,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), projectile_arena::kPort) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), projectile_arena::K_PORT) != SocketError::None)
   {
     std::printf("Cannot bind projectile-arena server\n");
     return 1;
@@ -226,7 +226,7 @@ int main()
     handle_packet(client, data, size);
   });
 
-  std::printf("projectile-arena server listening on port %u\n", projectile_arena::kPort);
+  std::printf("projectile-arena server listening on port %u\n", projectile_arena::K_PORT);
   auto lastFrame = std::chrono::steady_clock::now();
   auto lastSnapshot = lastFrame;
 

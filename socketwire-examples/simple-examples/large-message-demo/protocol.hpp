@@ -9,8 +9,8 @@
 namespace large_message_demo
 {
 
-constexpr std::uint16_t kPort = 53475;
-constexpr std::size_t kPayloadSize = 4096;
+constexpr std::uint16_t K_PORT = 53475;
+constexpr std::size_t K_PAYLOAD_SIZE = 4096;
 
 enum class MessageType : std::uint8_t
 {
@@ -31,7 +31,7 @@ inline std::uint32_t checksum(std::vector<std::uint8_t> const& bytes)
 
 inline std::vector<std::uint8_t> make_payload()
 {
-  std::vector<std::uint8_t> payload(kPayloadSize);
+  std::vector<std::uint8_t> payload(K_PAYLOAD_SIZE);
   for (std::size_t i = 0; i < payload.size(); ++i)
     payload[i] = static_cast<std::uint8_t>((i * 31u + i / 7u) & 0xffu);
   return payload;

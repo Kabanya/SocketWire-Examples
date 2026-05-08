@@ -40,7 +40,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), stats_window_demo::kPort) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), stats_window_demo::K_PORT) != SocketError::None)
   {
     std::printf("Cannot bind stats-window-demo server\n");
     return 1;
@@ -60,7 +60,7 @@ int main()
     handle_sample(client, data, size);
   });
 
-  std::printf("stats-window-demo server listening on port %u\n", stats_window_demo::kPort);
+  std::printf("stats-window-demo server listening on port %u\n", stats_window_demo::K_PORT);
   while (true)
   {
     hub.poll();

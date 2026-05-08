@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-constexpr uint16_t invalid_entity = -1;
+constexpr uint16_t INVALID_ENTITY = -1;
 struct Entity
 {
   // immutable state
@@ -20,7 +20,7 @@ struct Entity
   float steer = 0.f;
 
   // misc
-  uint16_t eid = invalid_entity;
+  uint16_t eid = INVALID_ENTITY;
 };
 
 void simulate_entity(Entity &e, float dt);

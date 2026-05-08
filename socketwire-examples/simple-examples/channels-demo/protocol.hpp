@@ -8,7 +8,7 @@
 namespace channels_demo
 {
 
-constexpr std::uint16_t kPort = 53474;
+constexpr std::uint16_t K_PORT = 53474;
 
 enum class MessageType : std::uint8_t
 {

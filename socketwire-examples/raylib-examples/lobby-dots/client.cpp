@@ -45,9 +45,9 @@ static void send_fragmented_packet(socketwire::ReliableConnection& connection)
   const char* baseMsg = "Stay awhile and listen. ";
   const std::size_t msgLen = std::char_traits<char>::length(baseMsg);
 
-  constexpr std::size_t sendSize = 2500;
-  std::string hugeMessage(sendSize, '\0');
-  for (std::size_t i = 0; i < sendSize - 1; ++i)
+  constexpr std::size_t SEND_SIZE = 2500;
+  std::string hugeMessage(SEND_SIZE, '\0');
+  for (std::size_t i = 0; i < SEND_SIZE - 1; ++i)
     hugeMessage[i] = baseMsg[i % msgLen];
 
   connection.sendReliable(0, hugeMessage.c_str(), hugeMessage.size());
@@ -343,9 +343,9 @@ int main()
     const bool right = IsKeyDown(KEY_RIGHT);
     const bool up = IsKeyDown(KEY_UP);
     const bool down = IsKeyDown(KEY_DOWN);
-    constexpr float accel = 30.f;
-    velx += ((left ? -1.f : 0.f) + (right ? 1.f : 0.f)) * dt * accel;
-    vely += ((up ? -1.f : 0.f) + (down ? 1.f : 0.f)) * dt * accel;
+    constexpr float ACCEL = 30.f;
+    velx += ((left ? -1.f : 0.f) + (right ? 1.f : 0.f)) * dt * ACCEL;
+    vely += ((up ? -1.f : 0.f) + (down ? 1.f : 0.f)) * dt * ACCEL;
     posx += velx * dt;
     posy += vely * dt;
     velx *= 0.99f;

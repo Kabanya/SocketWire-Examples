@@ -13,7 +13,7 @@
 #include <vector>
 
 static std::vector<Entity> entities;
-static std::uint16_t myEntity = invalid_entity;
+static std::uint16_t myEntity = INVALID_ENTITY;
 
 static void on_new_entity_packet(const void* data, std::size_t size)
 {
@@ -32,7 +32,7 @@ static void on_set_controlled_entity(const void* data, std::size_t size)
 
 static void on_snapshot(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float x = 0.f;
   float y = 0.f;
   float ori = 0.f;
@@ -141,7 +141,7 @@ int main()
       sentJoin = true;
     }
 
-    if (myEntity != invalid_entity)
+    if (myEntity != INVALID_ENTITY)
     {
       const bool left = IsKeyDown(KEY_LEFT);
       const bool right = IsKeyDown(KEY_RIGHT);

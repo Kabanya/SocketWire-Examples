@@ -8,26 +8,39 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
 #include <map>
+#include <random>
 #include <thread>
 #include <vector>
 
 static std::vector<Entity> entities;
 static std::map<std::uint16_t, socketwire_examples::ServerConnectionHub::Client*> controlledMap;
 
-static float random_spawn(const float maxSize = 10.f)
+static std::mt19937& random_generator()
 {
-  return static_cast<float>(std::rand() % 100 - 50) * maxSize;
+  static std::random_device random_device;
+  static std::mt19937 generator(random_device());
+  return generator;
+}
+
+static int random_int(int min, int max)
+{
+  std::uniform_int_distribution<int> distribution(min, max);
+  return distribution(random_generator());
+}
+
+static float random_spawn(const float max_size = 10.f)
+{
+  return static_cast<float>(random_int(-50, 49)) * max_size;
 }
 
 static std::uint16_t create_random_entity()
 {
   const auto newEid = static_cast<std::uint16_t>(entities.size());
   const std::uint32_t color = 0xff000000u +
-                              0x00440000u * static_cast<std::uint32_t>(1 + std::rand() % 4) +
-                              0x00004400u * static_cast<std::uint32_t>(1 + std::rand() % 4) +
-                              0x00000044u * static_cast<std::uint32_t>(1 + std::rand() % 4);
+                              0x00440000u * static_cast<std::uint32_t>(random_int(1, 4)) +
+                              0x00004400u * static_cast<std::uint32_t>(random_int(1, 4)) +
+                              0x00000044u * static_cast<std::uint32_t>(random_int(1, 4));
 
   Entity ent;
   ent.color = color;
@@ -37,7 +50,7 @@ static std::uint16_t create_random_entity()
   ent.serverControlled = false;
   ent.targetX = 0.f;
   ent.targetY = 0.f;
-  ent.size = 5.f + static_cast<float>(std::rand() % 6);
+  ent.size = 5.f + static_cast<float>(random_int(0, 5));
   ent.score = 0;
 
   entities.push_back(ent);
@@ -67,7 +80,7 @@ static void on_join(socketwire_examples::ServerConnectionHub& hub,
 
 static void on_state(const void* data, std::size_t size)
 {
-  std::uint16_t eid = invalid_entity;
+  std::uint16_t eid = INVALID_ENTITY;
   float x = 0.f;
   float y = 0.f;
   deserialize_entity_state(data, size, eid, x, y);
@@ -103,10 +116,10 @@ int main()
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
 
   bool createdAiEntities = false;
-  constexpr int numAi = 10;
+  constexpr int NUM_AI = 10;
 
-  constexpr int gameDuration = 60;
-  int gameTimeRemaining = gameDuration;
+  constexpr int GAME_DURATION = 60;
+  int gameTimeRemaining = GAME_DURATION;
   auto lastTimeUpdate = std::chrono::steady_clock::now();
   bool gameOver = false;
 
@@ -125,7 +138,7 @@ int main()
       {
         if (!createdAiEntities)
         {
-          for (int i = 0; i < numAi; ++i)
+          for (int i = 0; i < NUM_AI; ++i)
           {
             const std::uint16_t eid = create_random_entity();
             entities[eid].serverControlled = true;
@@ -175,7 +188,7 @@ int main()
         if (gameTimeRemaining <= 0)
         {
           gameOver = true;
-          std::uint16_t winnerEid = invalid_entity;
+          std::uint16_t winnerEid = INVALID_ENTITY;
           int highestScore = -1;
 
           for (const Entity& e : entities)
@@ -202,9 +215,9 @@ int main()
         const float diffY = e.targetY - e.y;
         const float dirX = diffX > 0.f ? 1.f : -1.f;
         const float dirY = diffY > 0.f ? 1.f : -1.f;
-        constexpr float speed = 50.f;
-        e.x += dirX * speed * dt;
-        e.y += dirY * speed * dt;
+        constexpr float SPEED = 50.f;
+        e.x += dirX * SPEED * dt;
+        e.y += dirY * SPEED * dt;
         if (std::fabs(diffX) < 10.f && std::fabs(diffY) < 10.f)
         {
           e.targetX = random_spawn();
@@ -238,9 +251,9 @@ int main()
 
           if (sizeGain > 0.f && sizeGain < 50.f)
           {
-            constexpr float maxSize = 100.f;
-            devourer->size = std::min(devourer->size + sizeGain, maxSize);
-            devoured->size = 5.f + static_cast<float>(std::rand() % 5);
+            constexpr float MAX_SIZE = 100.f;
+            devourer->size = std::min(devourer->size + sizeGain, MAX_SIZE);
+            devoured->size = 5.f + static_cast<float>(random_int(0, 4));
 
             if (!devoured->serverControlled)
               devoured->score = 0;

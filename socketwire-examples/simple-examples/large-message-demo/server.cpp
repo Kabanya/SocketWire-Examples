@@ -62,7 +62,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), large_message_demo::kPort) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), large_message_demo::K_PORT) != SocketError::None)
   {
     std::printf("Cannot bind large-message-demo server\n");
     return 1;
@@ -82,7 +82,7 @@ int main()
     handle_blob(client, data, size);
   });
 
-  std::printf("large-message-demo server listening on port %u\n", large_message_demo::kPort);
+  std::printf("large-message-demo server listening on port %u\n", large_message_demo::K_PORT);
   while (true)
   {
     hub.poll();
