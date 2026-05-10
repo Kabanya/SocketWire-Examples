@@ -7,6 +7,7 @@
 #include "socket_init.hpp"
 #include "socket_constants.hpp"
 #include "bit_stream.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include "client.hpp"
 
@@ -94,8 +95,11 @@ void display_help()
 }
 
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t serverPort = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_MATH_DUEL_PORT", 2025);
+
   // Initialize socket factory
   socketwire::initialize_sockets();
 
@@ -124,7 +128,6 @@ int main()
   }
 
   serverAddr = SocketConstants::loopback();
-  std::uint16_t serverPort = 2025;
 
   std::cout << "Client is using port: " << clientSocket->localPort() << std::endl;
 
@@ -144,7 +147,8 @@ int main()
   {
     std::string input;
     printf(">");
-    std::getline(std::cin, input);
+    if (!std::getline(std::cin, input))
+      break;
 
     if (input == "/help" || input == "/h" || input == "/?" || input == "--help")
     {

@@ -1,10 +1,10 @@
 #include "protocol.h"
 
+#include "benchmark_utils.hpp"
 #include "bit_stream.hpp"
 #include "quantisation.h"
 #include "reliable_connection.hpp"
 
-#include <algorithm>
 #include <cstring>
 #include <random>
 
@@ -45,7 +45,8 @@ void send_join(socketwire::ReliableConnection* connection)
 {
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_new_entity(socketwire::ReliableConnection* connection, const Entity& ent)
@@ -53,7 +54,8 @@ void send_new_entity(socketwire::ReliableConnection* connection, const Entity& e
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_NEW_ENTITY);
   bs.writeBytes(&ent, sizeof(Entity));
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_set_controlled_entity(socketwire::ReliableConnection* connection, std::uint16_t eid)
@@ -61,7 +63,8 @@ void send_set_controlled_entity(socketwire::ReliableConnection* connection, std:
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
   bs.write<std::uint16_t>(eid);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_cipher_key(socketwire::ReliableConnection* connection, std::uint32_t key)
@@ -69,7 +72,8 @@ void send_cipher_key(socketwire::ReliableConnection* connection, std::uint32_t k
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_KEY);
   bs.write<std::uint32_t>(key);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t eid, float thr, float steer)
@@ -83,7 +87,8 @@ void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t
   std::vector<std::uint8_t> packet = copy_stream(bs);
   fuzz_packet_data(packet);
   xor_packet_data(packet, xorCipherKey);
-  connection->sendUnsequenced(1, packet.data(), packet.size());
+  if (connection->sendUnsequenced(1, packet.data(), packet.size()))
+    socketwire_examples::benchmark::recordPayloadTx(packet.size());
 }
 
 void send_snapshot(socketwire::ReliableConnection* connection, std::uint16_t eid, float x, float y, float ori)
@@ -99,7 +104,8 @@ void send_snapshot(socketwire::ReliableConnection* connection, std::uint16_t eid
   bs.write<std::uint16_t>(yPacked);
   bs.write<std::uint8_t>(oriPacked);
 
-  connection->sendUnsequenced(1, bs);
+  if (connection->sendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 MessageType get_packet_type(const void* data, std::size_t size)

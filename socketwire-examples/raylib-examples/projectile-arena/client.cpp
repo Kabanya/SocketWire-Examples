@@ -5,6 +5,7 @@
 #include "reliable_connection.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -92,8 +93,11 @@ Vector2 local_player_position(const ClientState& state)
 
 } // namespace
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_PROJECTILE_ARENA_PORT", projectile_arena::K_PORT);
+
   initialize_sockets();
   auto* factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -115,7 +119,7 @@ int main()
   ClientState state;
   ClientHandler handler(state);
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), projectile_arena::K_PORT);
+  connection.connect(SocketConstants::loopback(), port);
 
   InitWindow(900, 600, "SocketWire projectile arena");
   SetTargetFPS(60);

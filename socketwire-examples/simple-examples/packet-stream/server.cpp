@@ -2,6 +2,7 @@
 #include "server_connection_hub.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -9,8 +10,11 @@
 
 using namespace socketwire; // NOLINT
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
+
   initialize_sockets();
   auto* factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -20,7 +24,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), 53473) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
   {
     printf("Cannot create server socket\n");
     return 1;
@@ -38,7 +42,7 @@ int main()
     printf("Packet received '%.*s'\n", static_cast<int>(size), static_cast<const char*>(data));
   });
 
-  printf("packet-stream server listening on port 53473\n");
+  printf("packet-stream server listening on port %u\n", static_cast<unsigned>(port));
   while (true)
   {
     hub.poll();

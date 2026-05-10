@@ -1,5 +1,6 @@
 #include "raylib.h"
 
+#include "benchmark_utils.hpp"
 #include "reliable_connection.hpp"
 #include "socketwire_example_utils.hpp"
 
@@ -9,6 +10,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 struct Player
@@ -34,10 +36,12 @@ static void send_text(socketwire::ReliableConnection& connection,
                       const std::string& text,
                       bool reliable = true)
 {
-  if (reliable)
-    connection.sendReliable(0, text.c_str(), text.size() + 1);
-  else
-    connection.sendUnsequenced(0, text.c_str(), text.size() + 1);
+  const std::size_t bytes = text.size() + 1;
+  const bool sent = reliable
+    ? connection.sendReliable(0, text.c_str(), bytes)
+    : connection.sendUnsequenced(0, text.c_str(), bytes);
+  if (sent)
+    socketwire_examples::benchmark::recordPayloadTx(bytes);
 }
 
 static void send_fragmented_packet(socketwire::ReliableConnection& connection)
@@ -50,7 +54,8 @@ static void send_fragmented_packet(socketwire::ReliableConnection& connection)
   for (std::size_t i = 0; i < SEND_SIZE - 1; ++i)
     hugeMessage[i] = baseMsg[i % msgLen];
 
-  connection.sendReliable(0, hugeMessage.c_str(), hugeMessage.size());
+  if (connection.sendReliable(0, hugeMessage.c_str(), hugeMessage.size()))
+    socketwire_examples::benchmark::recordPayloadTx(hugeMessage.size());
 }
 
 static void send_micro_packet(socketwire::ReliableConnection& connection)
@@ -110,11 +115,13 @@ public:
 
   void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
+    socketwire_examples::benchmark::recordPayloadRx(size);
     handlePacket(channel, data, size);
   }
 
   void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
+    socketwire_examples::benchmark::recordPayloadRx(size);
     handlePacket(channel, data, size);
   }
 
@@ -238,22 +245,36 @@ private:
   }
 };
 
-int main()
+int main(int argc, const char** argv)
 {
+  auto benchOptions = socketwire_examples::benchmark::parseOptions(argc, argv, 0, 10887, 10888);
+  socketwire_examples::benchmark::MetricsCollector metrics(
+    benchOptions, "lobby-dots", "socketwire", "client");
+  socketwire_examples::benchmark::setActiveCollector(&metrics);
+
+  const std::uint16_t connectLobbyPort = benchOptions.enabled
+    ? benchOptions.lobbyPort
+    : socketwire_examples::portFromArgsOrEnv(argc, argv, 1, "SOCKETWIRE_LOBBY_DOTS_LOBBY_PORT", 10887);
+
   int width = 800;
   int height = 600;
-  InitWindow(width, height, "Lobby Dots");
+  if (!benchOptions.enabled)
+    InitWindow(width, height, "Lobby Dots");
 
-  const int scrWidth = GetMonitorWidth(0);
-  const int scrHeight = GetMonitorHeight(0);
-  if (scrWidth < width || scrHeight < height)
+  if (!benchOptions.enabled)
   {
-    width = std::min(scrWidth, width);
-    height = std::min(scrHeight - 150, height);
-    SetWindowSize(width, height);
+    const int scrWidth = GetMonitorWidth(0);
+    const int scrHeight = GetMonitorHeight(0);
+    if (scrWidth < width || scrHeight < height)
+    {
+      width = std::min(scrWidth, width);
+      height = std::min(scrHeight - 150, height);
+      SetWindowSize(width, height);
+    }
   }
 
-  SetTargetFPS(60);
+  if (!benchOptions.enabled)
+    SetTargetFPS(60);
 
   auto lobbySocket = socketwire_examples::createUdpSocket(0);
   if (lobbySocket == nullptr)
@@ -266,7 +287,7 @@ int main()
   ClientState state;
   ClientHandler lobbyHandler(state, ConnectionTarget::Lobby);
   lobbyConnection.setHandler(&lobbyHandler);
-  lobbyConnection.connect(socketwire::SocketConstants::loopback(), 10887);
+  lobbyConnection.connect(socketwire_examples::resolveAddress(benchOptions.host), connectLobbyPort);
 
   std::unique_ptr<socketwire::ISocket> gameSocket;
   std::unique_ptr<socketwire::ReliableConnection> gameConnection;
@@ -280,11 +301,15 @@ int main()
   float posy = static_cast<float>(GetRandomValue(100, 500));
   float velx = 0.f;
   float vely = 0.f;
+  bool startSent = false;
+  std::uint64_t benchFrame = 0;
 
-  while (!WindowShouldClose())
+  while (benchOptions.enabled ? !metrics.done() : !WindowShouldClose())
   {
-    const float dt = GetFrameTime();
+    const auto frameStart = std::chrono::steady_clock::now();
+    const float dt = benchOptions.enabled ? (1.f / 60.f) : GetFrameTime();
 
+    const auto updateStart = std::chrono::steady_clock::now();
     lobbyConnection.tick();
     if (gameConnection != nullptr)
       gameConnection->tick();
@@ -297,9 +322,7 @@ int main()
         gameConnection = std::make_unique<socketwire::ReliableConnection>(gameSocket.get(), cfg);
         gameHandler = std::make_unique<ClientHandler>(state, ConnectionTarget::Game);
         gameConnection->setHandler(gameHandler.get());
-        gameConnection->connect(
-          socketwire_examples::resolveAddress(state.pendingGameHost),
-          state.pendingGamePort);
+        gameConnection->connect(socketwire_examples::resolveAddress(state.pendingGameHost), state.pendingGamePort);
       }
       else
       {
@@ -333,25 +356,34 @@ int main()
       }
     }
 
-    if (IsKeyPressed(KEY_ESCAPE))
+    if (!benchOptions.enabled && IsKeyPressed(KEY_ESCAPE))
       break;
 
-    if (IsKeyPressed(KEY_ENTER) && state.connectedToLobby)
+    if (((benchOptions.enabled && !startSent) || (!benchOptions.enabled && IsKeyPressed(KEY_ENTER))) &&
+        state.connectedToLobby)
+    {
       send_text(lobbyConnection, "Start!");
+      startSent = true;
+    }
 
-    const bool left = IsKeyDown(KEY_LEFT);
-    const bool right = IsKeyDown(KEY_RIGHT);
-    const bool up = IsKeyDown(KEY_UP);
-    const bool down = IsKeyDown(KEY_DOWN);
+    const float axisX = benchOptions.enabled
+      ? socketwire_examples::benchmark::deterministicAxis(benchOptions.seed, benchFrame, 0)
+      : ((IsKeyDown(KEY_RIGHT) ? 1.f : 0.f) + (IsKeyDown(KEY_LEFT) ? -1.f : 0.f));
+    const float axisY = benchOptions.enabled
+      ? socketwire_examples::benchmark::deterministicAxis(benchOptions.seed, benchFrame, 1)
+      : ((IsKeyDown(KEY_DOWN) ? 1.f : 0.f) + (IsKeyDown(KEY_UP) ? -1.f : 0.f));
     constexpr float ACCEL = 30.f;
-    velx += ((left ? -1.f : 0.f) + (right ? 1.f : 0.f)) * dt * ACCEL;
-    vely += ((up ? -1.f : 0.f) + (down ? 1.f : 0.f)) * dt * ACCEL;
+    velx += axisX * dt * ACCEL;
+    vely += axisY * dt * ACCEL;
     posx += velx * dt;
     posy += vely * dt;
     velx *= 0.99f;
     vely *= 0.99f;
+    const auto updateEnd = std::chrono::steady_clock::now();
 
-    BeginDrawing();
+    if (!benchOptions.enabled)
+    {
+      BeginDrawing();
       ClearBackground(BLACK);
 
       DrawText(TextFormat("Current status: %s", state.gameServerStatus.c_str()), 20, 20, 20, WHITE);
@@ -383,12 +415,42 @@ int main()
       }
 
     EndDrawing();
+    }
+    else
+    {
+      int connectedCount = state.connectedToLobby ? 1 : 0;
+      if (state.connectedToGameServer)
+        connectedCount += 1;
+      socketwire_examples::benchmark::NetworkStats stats =
+        socketwire_examples::benchmark::statsFromConnection(lobbyConnection);
+      if (gameConnection != nullptr)
+      {
+        const auto gameStats = socketwire_examples::benchmark::statsFromConnection(*gameConnection);
+        stats.rttMs = state.connectedToGameServer ? (stats.rttMs + gameStats.rttMs) * 0.5 : stats.rttMs;
+        stats.lostPackets += gameStats.lostPackets;
+        stats.inflightPackets += gameStats.inflightPackets;
+        stats.sendWindow += gameStats.sendWindow;
+      }
+      metrics.setConnectedClients(connectedCount);
+      metrics.setNetworkStats(stats);
+      metrics.recordUpdateMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(updateEnd - updateStart).count()) / 1000.0);
+      metrics.recordFrameMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now() - frameStart).count()) / 1000.0);
+      metrics.maybeWriteSample();
+      std::this_thread::sleep_for(std::chrono::milliseconds(16));
+      ++benchFrame;
+    }
   }
 
   lobbyConnection.disconnect();
   if (gameConnection != nullptr)
     gameConnection->disconnect();
 
-  CloseWindow();
+  metrics.finish();
+  socketwire_examples::benchmark::setActiveCollector(nullptr);
+  if (!benchOptions.enabled)
+    CloseWindow();
   return 0;
 }

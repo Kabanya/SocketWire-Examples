@@ -1,9 +1,7 @@
-# To be included in subfolders where all targets are owned by us
-
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-include_directories(${PROJECT_SOURCE_DIR}/common)
+include_directories(${CMAKE_SOURCE_DIR}/socketwire-examples/common)
 
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC") # cl and clang-cl
   add_compile_options(/W4 /WX

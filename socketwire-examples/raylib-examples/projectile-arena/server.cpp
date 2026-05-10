@@ -4,6 +4,7 @@
 #include "i_socket.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -192,8 +193,11 @@ void broadcast_snapshot()
 
 } // namespace
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_PROJECTILE_ARENA_PORT", projectile_arena::K_PORT);
+
   initialize_sockets();
   auto* factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -203,7 +207,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), projectile_arena::K_PORT) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
   {
     std::printf("Cannot bind projectile-arena server\n");
     return 1;
@@ -226,7 +230,7 @@ int main()
     handle_packet(client, data, size);
   });
 
-  std::printf("projectile-arena server listening on port %u\n", projectile_arena::K_PORT);
+  std::printf("projectile-arena server listening on port %u\n", static_cast<unsigned>(port));
   auto lastFrame = std::chrono::steady_clock::now();
   auto lastSnapshot = lastFrame;
 

@@ -1,5 +1,6 @@
 #include "raylib.h"
 
+#include "benchmark_utils.hpp"
 #include "server_connection_hub.hpp"
 #include "socketwire_example_utils.hpp"
 
@@ -32,10 +33,12 @@ static void send_text(socketwire_examples::ServerConnectionHub::Client& client,
                       const std::string& text,
                       bool reliable = true)
 {
-  if (reliable)
-    client.connection->sendReliable(0, text.c_str(), text.size() + 1);
-  else
-    client.connection->sendUnsequenced(0, text.c_str(), text.size() + 1);
+  const std::size_t bytes = text.size() + 1;
+  const bool sent = reliable
+    ? client.connection->sendReliable(0, text.c_str(), bytes)
+    : client.connection->sendUnsequenced(0, text.c_str(), bytes);
+  if (sent)
+    socketwire_examples::benchmark::recordPayloadTx(bytes);
 }
 
 static void sendPlayerList(const std::vector<Player>& players,
@@ -88,11 +91,16 @@ static void broadcastPings(const std::vector<Player>& players)
 
 int main(int argc, const char** argv)
 {
-  int port = 10888;
-  if (argc > 1)
-    port = std::atoi(argv[1]);
+  auto benchOptions = socketwire_examples::benchmark::parseOptions(argc, argv, 0, 10887, 10888);
+  socketwire_examples::benchmark::MetricsCollector metrics(
+    benchOptions, "lobby-dots", "socketwire", "game-server");
+  socketwire_examples::benchmark::setActiveCollector(&metrics);
 
-  auto socket = socketwire_examples::createUdpSocket(static_cast<std::uint16_t>(port));
+  const std::uint16_t listenPort = benchOptions.enabled
+    ? benchOptions.gamePort
+    : socketwire_examples::portFromArgsOrEnv(argc, argv, 1, "SOCKETWIRE_LOBBY_DOTS_GAME_PORT", 10888);
+
+  auto socket = socketwire_examples::createUdpSocket(listenPort);
   if (socket == nullptr)
     return 1;
 
@@ -142,6 +150,7 @@ int main(int argc, const char** argv)
 
   hub.setPacketCallback([&](auto& client, std::uint8_t, const void* data, std::size_t size, bool)
   {
+    socketwire_examples::benchmark::recordPayloadRx(size);
     const auto it = std::find_if(players.begin(), players.end(),
       [&](const Player& player) { return player.client == &client; });
     if (it == players.end())
@@ -166,9 +175,13 @@ int main(int argc, const char** argv)
   auto lastBroadcastTime = std::chrono::steady_clock::now();
   auto lastPingTime = std::chrono::steady_clock::now();
 
-  std::printf("Game server started on port %d\n", port);
+  std::printf("Game server started on port %u\n", static_cast<unsigned>(listenPort));
   while (true)
   {
+    if (benchOptions.enabled && metrics.done())
+      break;
+    const auto frameStart = std::chrono::steady_clock::now();
+    const auto updateStart = frameStart;
     hub.poll();
     hub.update();
 
@@ -186,7 +199,24 @@ int main(int argc, const char** argv)
       if (!players.empty())
         broadcastPings(players);
     }
+    const auto updateEnd = std::chrono::steady_clock::now();
+
+    if (benchOptions.enabled)
+    {
+      const auto clients = hub.clients();
+      metrics.setConnectedClients(static_cast<int>(clients.size()));
+      metrics.setNetworkStats(socketwire_examples::benchmark::statsFromClients(clients));
+      metrics.recordUpdateMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(updateEnd - updateStart).count()) / 1000.0);
+      metrics.recordFrameMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now() - frameStart).count()) / 1000.0);
+      metrics.maybeWriteSample();
+    }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
+
+  metrics.finish();
+  socketwire_examples::benchmark::setActiveCollector(nullptr);
 }

@@ -6,6 +6,7 @@
 #include "i_socket.hpp"
 #include "socket_init.hpp"
 #include "socket_constants.hpp"
+#include "socketwire_example_utils.hpp"
 
 using namespace socketwire; //NOLINT
 
@@ -28,8 +29,11 @@ namespace socketwire {
 extern void register_posix_socket_factory();
 }
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_ECHO_PORT", 40404);
+
   socketwire::initialize_sockets();
 
   auto factory = SocketFactoryRegistry::getFactory();
@@ -49,12 +53,12 @@ int main()
   PrintHandler handler;
 
   SocketAddress bindAddr = SocketConstants::any();
-  if (server->bind(bindAddr, 40404) != SocketError::None)
+  if (server->bind(bindAddr, port) != SocketError::None)
   {
     std::cout << "Bind failed\n";
     return 1;
   }
-  std::cout << "Server listening on port 40404\n";
+  std::cout << "Server listening on port " << port << "\n";
   while (true)
   {
     server->poll(&handler);

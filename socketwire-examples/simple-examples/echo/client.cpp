@@ -6,6 +6,7 @@
 #include "i_socket.hpp"
 #include "socket_init.hpp"
 #include "socket_constants.hpp"
+#include "socketwire_example_utils.hpp"
 
 using namespace socketwire; //NOLINT
 
@@ -23,8 +24,11 @@ public:
   }
 };
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_ECHO_PORT", 40404);
+
   // Initialize socket factory
   initialize_sockets();
 
@@ -50,7 +54,7 @@ int main()
   SocketAddress dest = SocketConstants::loopback();
 
   std::string msg = "Hello from use case of Client from Socket class!";
-  client->sendTo(msg.c_str(), msg.size(), dest, 40404);
+  client->sendTo(msg.c_str(), msg.size(), dest, port);
 
   for (int i = 0; i < 10; ++i)
   {

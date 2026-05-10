@@ -2,6 +2,7 @@
 #include "reliable_connection.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -34,8 +35,11 @@ public:
   bool connected = false;
 };
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
+
   initialize_sockets();
   auto* factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -56,7 +60,7 @@ int main()
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), 53473);
+  connection.connect(SocketConstants::loopback(), port);
 
   auto lastSend = std::chrono::steady_clock::now();
   int counter = 0;

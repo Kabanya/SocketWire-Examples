@@ -1,6 +1,7 @@
 #include "entity.h"
 #include "protocol.h"
 
+#include "benchmark_utils.hpp"
 #include "server_connection_hub.hpp"
 #include "socketwire_example_utils.hpp"
 
@@ -147,9 +148,18 @@ static void update_time(socketwire_examples::ServerConnectionHub& hub, std::uint
       send_time_msec(client->connection.get(), curTime);
 }
 
-int main()
+int main(int argc, const char** argv)
 {
-  auto socket = socketwire_examples::createUdpSocket(10131);
+  auto benchOptions = socketwire_examples::benchmark::parseOptions(argc, argv, 10131);
+  socketwire_examples::benchmark::MetricsCollector metrics(
+    benchOptions, "ship-swarm", "socketwire", "server");
+  socketwire_examples::benchmark::setActiveCollector(&metrics);
+
+  const std::uint16_t listenPort = benchOptions.enabled
+    ? benchOptions.port
+    : socketwire_examples::portFromArgsOrEnv(argc, argv, 1, "SOCKETWIRE_SHIP_SWARM_PORT", 10131);
+
+  auto socket = socketwire_examples::createUdpSocket(listenPort);
   if (socket == nullptr)
     return 1;
 
@@ -166,6 +176,7 @@ int main()
 
   hub.setPacketCallback([&](auto& client, std::uint8_t, const void* data, std::size_t size, bool)
   {
+    socketwire_examples::benchmark::recordPayloadRx(size);
     switch (get_packet_type(data, size))
     {
       case E_CLIENT_TO_SERVER_JOIN:
@@ -190,17 +201,38 @@ int main()
   auto lastTime = start;
   while (true)
   {
+    if (benchOptions.enabled && metrics.done())
+      break;
+    const auto frameStart = std::chrono::steady_clock::now();
     const auto curTime = std::chrono::steady_clock::now();
     const float dt =
       std::chrono::duration_cast<std::chrono::milliseconds>(curTime - lastTime).count() * 0.001f;
     lastTime = curTime;
 
+    const auto updateStart = std::chrono::steady_clock::now();
     hub.poll();
     hub.update();
     simulate_world(hub, dt);
     const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(curTime - start).count();
     update_time(hub, static_cast<std::uint32_t>(elapsedMs));
+    const auto updateEnd = std::chrono::steady_clock::now();
+
+    if (benchOptions.enabled)
+    {
+      const auto clients = hub.clients();
+      metrics.setConnectedClients(static_cast<int>(clients.size()));
+      metrics.setNetworkStats(socketwire_examples::benchmark::statsFromClients(clients));
+      metrics.recordUpdateMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(updateEnd - updateStart).count()) / 1000.0);
+      metrics.recordFrameMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now() - frameStart).count()) / 1000.0);
+      metrics.maybeWriteSample();
+    }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+
+  metrics.finish();
+  socketwire_examples::benchmark::setActiveCollector(nullptr);
 }

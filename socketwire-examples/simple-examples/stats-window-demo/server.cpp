@@ -4,6 +4,7 @@
 #include "i_socket.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -29,8 +30,11 @@ static void handle_sample(socketwire_examples::ServerConnectionHub::Client& clie
   client.connection->sendReliable(0, ack);
 }
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_STATS_WINDOW_DEMO_PORT", stats_window_demo::K_PORT);
+
   initialize_sockets();
   auto* factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -40,7 +44,7 @@ int main()
   }
 
   auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), stats_window_demo::K_PORT) != SocketError::None)
+  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
   {
     std::printf("Cannot bind stats-window-demo server\n");
     return 1;
@@ -60,7 +64,7 @@ int main()
     handle_sample(client, data, size);
   });
 
-  std::printf("stats-window-demo server listening on port %u\n", stats_window_demo::K_PORT);
+  std::printf("stats-window-demo server listening on port %u\n", static_cast<unsigned>(port));
   while (true)
   {
     hub.poll();

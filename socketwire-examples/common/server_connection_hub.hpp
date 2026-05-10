@@ -48,8 +48,8 @@ public:
       std::uint16_t fromPort = 0;
       std::uint8_t buffer[4096]{};
 
-      auto result = socket_->receive(buffer, sizeof(buffer), fromAddr, fromPort);
-      if (result.failed())
+      auto result = socket_->Receive(buffer, sizeof(buffer), fromAddr, fromPort);
+      if (result.Failed())
         break;
       if (result.bytes <= 0)
         continue;
@@ -61,8 +61,14 @@ public:
           continue;
         client = createClient(fromAddr, fromPort);
       }
+      else if (isConnectPacket(buffer, static_cast<std::size_t>(result.bytes)) &&
+               client->connection != nullptr &&
+               client->connection->IsConnected())
+      {
+        resetClient(*static_cast<ClientRecord*>(client));
+      }
 
-      client->connection->processPacket(
+      client->connection->ProcessPacket(
         buffer, static_cast<std::size_t>(result.bytes), fromAddr, fromPort);
     }
   }
@@ -72,13 +78,13 @@ public:
     for (auto& client : clients_)
     {
       if (client->connection != nullptr)
-        client->connection->update();
+        client->connection->Update();
     }
 
     std::erase_if(clients_, [this](const auto& client)
     {
       if (client->connection == nullptr ||
-          client->connection->getState() != socketwire::ConnectionState::Disconnected)
+          client->connection->GetState() != socketwire::ConnectionState::kDisconnected)
         return false;
 
       clientMap_.erase(makeKey(client->address, client->port));
@@ -111,31 +117,31 @@ private:
     {
     }
 
-    void onConnected() override
+    void OnConnected() override
     {
       if (hub_.onConnected_ != nullptr)
         hub_.onConnected_(client_);
     }
 
-    void onDisconnected() override
+    void OnDisconnected() override
     {
       if (hub_.onDisconnected_ != nullptr)
         hub_.onDisconnected_(client_);
     }
 
-    void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+    void OnReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
     {
       if (hub_.onPacket_ != nullptr)
         hub_.onPacket_(client_, channel, data, size, true);
     }
 
-    void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+    void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
     {
       if (hub_.onPacket_ != nullptr)
         hub_.onPacket_(client_, channel, data, size, false);
     }
 
-    void onTimeout() override
+    void OnTimeout() override
     {
       if (hub_.onDisconnected_ != nullptr)
         hub_.onDisconnected_(client_);
@@ -156,10 +162,8 @@ private:
     auto record = std::make_unique<ClientRecord>();
     record->address = address;
     record->port = port;
-    record->connection = std::make_unique<socketwire::ReliableConnection>(socket_, config_);
-    record->connection->setRemoteAddress(address, port);
     record->handler = std::make_unique<ClientHandler>(*this, *record);
-    record->connection->setHandler(record->handler.get());
+    resetClient(*record);
 
     Client* raw = record.get();
     clientMap_[makeKey(address, port)] = raw;
@@ -167,17 +171,24 @@ private:
     return raw;
   }
 
+  void resetClient(ClientRecord& client)
+  {
+    client.connection = std::make_unique<socketwire::ReliableConnection>(socket_, config_);
+    client.connection->SetRemoteAddress(client.address, client.port);
+    client.connection->SetHandler(client.handler.get());
+  }
+
   static bool isConnectPacket(const void* data, std::size_t size)
   {
     if (size < 1)
       return false;
     const auto packetType = *static_cast<const std::uint8_t*>(data);
-    return packetType == static_cast<std::uint8_t>(socketwire::PacketType::Connect);
+    return packetType == static_cast<std::uint8_t>(socketwire::PacketType::kConnect);
   }
 
   static std::string makeKey(const socketwire::SocketAddress& address, std::uint16_t port)
   {
-    return socketwire::makeConnectionKey(address, port);
+    return socketwire::MakeConnectionKey(address, port);
   }
 
   socketwire::ISocket* socket_ = nullptr;

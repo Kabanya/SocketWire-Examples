@@ -4,6 +4,7 @@
 #include "reliable_connection.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -64,8 +65,11 @@ public:
   int snapshots = 0;
 };
 
-int main()
+int main(int argc, const char** argv)
 {
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_CHANNELS_DEMO_PORT", channels_demo::K_PORT);
+
   initialize_sockets();
   auto* factory = SocketFactoryRegistry::getFactory();
   if (factory == nullptr)
@@ -86,7 +90,7 @@ int main()
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), channels_demo::K_PORT);
+  connection.connect(SocketConstants::loopback(), port);
 
   const auto started = std::chrono::steady_clock::now();
   auto lastMove = started;

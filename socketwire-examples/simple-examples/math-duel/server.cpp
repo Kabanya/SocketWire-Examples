@@ -10,6 +10,7 @@
 #include "socket_init.hpp"
 #include "socket_constants.hpp"
 #include "i_socket.hpp"
+#include "socketwire_example_utils.hpp"
 
 #include "server.hpp"
 
@@ -322,13 +323,13 @@ public:
   }
 };
 
-int main()
+int main(int argc, const char** argv)
 {
   // Initialize socket factory
   socketwire::initialize_sockets();
 
-  const char* port_str = "2025";
-  uint16_t port = 2025;
+  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_MATH_DUEL_PORT", 2025);
 
   ServerHandler handler;
 
@@ -353,7 +354,7 @@ int main()
     printf("cannot bind socket\n");
     return 1;
   }
-  printf("listening on port %s!\n", port_str);
+  printf("listening on port %u!\n", static_cast<unsigned>(port));
 
   while (true)
   {

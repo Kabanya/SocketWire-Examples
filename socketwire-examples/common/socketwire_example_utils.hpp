@@ -5,8 +5,10 @@
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,15 +16,67 @@
 namespace socketwire_examples
 {
 
+inline std::optional<std::uint16_t> parsePort(const char* text)
+{
+  if (text == nullptr || *text == '\0')
+    return std::nullopt;
+
+  char* end = nullptr;
+  errno = 0;
+  const unsigned long value = std::strtoul(text, &end, 10);
+  if (errno != 0 || end == text || *end != '\0' || value == 0 || value > 65535UL)
+    return std::nullopt;
+
+  return static_cast<std::uint16_t>(value);
+}
+
+inline std::uint16_t portFromArgsOrEnv(int argc,
+                                       const char** argv,
+                                       int argIndex,
+                                       const char* envName,
+                                       std::uint16_t defaultPort)
+{
+  std::uint16_t port = defaultPort;
+
+  if (envName != nullptr)
+  {
+    const char* envValue = std::getenv(envName);
+    if (envValue != nullptr && *envValue != '\0')
+    {
+      const std::optional<std::uint16_t> parsed = parsePort(envValue);
+      if (parsed.has_value())
+        port = *parsed;
+      else
+        std::printf("Ignoring invalid port in %s='%s'; using %u\n",
+                    envName,
+                    envValue,
+                    static_cast<unsigned>(port));
+    }
+  }
+
+  if (argIndex > 0 && argIndex < argc && argv != nullptr && argv[argIndex] != nullptr)
+  {
+    const std::optional<std::uint16_t> parsed = parsePort(argv[argIndex]);
+    if (parsed.has_value())
+      port = *parsed;
+    else
+      std::printf("Ignoring invalid port argument '%s'; using %u\n",
+                  argv[argIndex],
+                  static_cast<unsigned>(port));
+  }
+
+  return port;
+}
+
 inline std::unique_ptr<socketwire::ISocket> createUdpSocket(std::uint16_t port)
 {
-  if (!socketwire::initialize_sockets())
+  if (!socketwire::InitializeSockets())
   {
     std::printf("Cannot init SocketWire\n");
     return nullptr;
   }
 
-  auto* factory = socketwire::SocketFactoryRegistry::getFactory();
+  auto* factory = socketwire::SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot get socket factory\n");
@@ -33,16 +87,16 @@ inline std::unique_ptr<socketwire::ISocket> createUdpSocket(std::uint16_t port)
   cfg.nonBlocking = true;
   cfg.reuseAddress = true;
 
-  auto socket = factory->createUDPSocket(cfg);
+  auto socket = factory->CreateUdpSocket(cfg);
   if (socket == nullptr)
   {
     std::printf("Cannot create UDP socket\n");
     return nullptr;
   }
 
-  if (socket->bind(socketwire::SocketConstants::any(), port) != socketwire::SocketError::None)
+  if (socket->Bind(socketwire::SocketConstants::Any(), port) != socketwire::SocketError::kNone)
   {
-    std::printf("Cannot bind UDP socket to port %u\n", port);
+    std::printf("Cannot bind UDP socket to port %u\n", static_cast<unsigned>(port));
     return nullptr;
   }
 
@@ -52,16 +106,16 @@ inline std::unique_ptr<socketwire::ISocket> createUdpSocket(std::uint16_t port)
 inline socketwire::SocketAddress resolveAddress(const std::string& host)
 {
   if (host == "localhost")
-    return socketwire::SocketConstants::loopback();
+    return socketwire::SocketConstants::Loopback();
 
   const std::optional<socketwire::SocketAddress> parsed =
-    socketwire::SocketConstants::tryFromString(host.c_str());
-  return parsed.value_or(socketwire::SocketConstants::loopback());
+    socketwire::SocketConstants::TryFromString(host.c_str());
+  return parsed.value_or(socketwire::SocketConstants::Loopback());
 }
 
 inline void writeString(socketwire::BitStream& stream, const std::string& value)
 {
-  stream.writeBytes(value.c_str(), value.size() + 1);
+  stream.WriteBytes(value.c_str(), value.size() + 1);
 }
 
 inline std::string readStringPayload(const void* data, std::size_t size)

@@ -1,5 +1,6 @@
 #include "protocol.h"
 
+#include "benchmark_utils.hpp"
 #include "bit_stream.hpp"
 #include "reliable_connection.hpp"
 
@@ -7,7 +8,8 @@ void send_join(socketwire::ReliableConnection* connection)
 {
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_new_entity(socketwire::ReliableConnection* connection, const Entity& ent)
@@ -25,7 +27,8 @@ void send_new_entity(socketwire::ReliableConnection* connection, const Entity& e
   bs.write<float>(ent.thr);
   bs.write<float>(ent.steer);
   bs.write<std::uint16_t>(ent.eid);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_set_controlled_entity(socketwire::ReliableConnection* connection, std::uint16_t eid)
@@ -33,7 +36,8 @@ void send_set_controlled_entity(socketwire::ReliableConnection* connection, std:
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
   bs.write<std::uint16_t>(eid);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t eid, float thr, float steer)
@@ -43,7 +47,8 @@ void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t
   bs.write<std::uint16_t>(eid);
   bs.write<float>(thr);
   bs.write<float>(steer);
-  connection->sendUnsequenced(1, bs);
+  if (connection->sendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_snapshot(socketwire::ReliableConnection* connection,
@@ -72,7 +77,8 @@ void send_snapshot(socketwire::ReliableConnection* connection,
   bs.write<float>(omega);
   bs.write<std::uint64_t>(timestampMs);
   bs.write<std::uint32_t>(frameNumber);
-  connection->sendUnsequenced(1, bs);
+  if (connection->sendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_time_msec(socketwire::ReliableConnection* connection, std::uint32_t timeMsec)
@@ -80,7 +86,8 @@ void send_time_msec(socketwire::ReliableConnection* connection, std::uint32_t ti
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_TIME_MSEC);
   bs.write<std::uint32_t>(timeMsec);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 MessageType get_packet_type(const void* data, std::size_t size)

@@ -1,5 +1,6 @@
 #include "protocol.h"
 
+#include "benchmark_utils.hpp"
 #include "bit_stream.hpp"
 #include "reliable_connection.hpp"
 
@@ -7,7 +8,8 @@ void send_join(socketwire::ReliableConnection* connection)
 {
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_new_entity(socketwire::ReliableConnection* connection, const Entity& ent)
@@ -23,7 +25,8 @@ void send_new_entity(socketwire::ReliableConnection* connection, const Entity& e
   bs.write<float>(ent.targetY);
   bs.write<float>(ent.size);
   bs.write<int>(ent.score);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_set_controlled_entity(socketwire::ReliableConnection* connection, std::uint16_t eid)
@@ -31,7 +34,8 @@ void send_set_controlled_entity(socketwire::ReliableConnection* connection, std:
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
   bs.write<std::uint16_t>(eid);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_entity_state(socketwire::ReliableConnection* connection, std::uint16_t eid, float x, float y)
@@ -41,7 +45,8 @@ void send_entity_state(socketwire::ReliableConnection* connection, std::uint16_t
   bs.write<std::uint16_t>(eid);
   bs.write<float>(x);
   bs.write<float>(y);
-  connection->sendUnsequenced(1, bs);
+  if (connection->sendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_snapshot(socketwire::ReliableConnection* connection, std::uint16_t eid, float x, float y, float size)
@@ -52,7 +57,8 @@ void send_snapshot(socketwire::ReliableConnection* connection, std::uint16_t eid
   bs.write<float>(x);
   bs.write<float>(y);
   bs.write<float>(size);
-  connection->sendUnsequenced(1, bs);
+  if (connection->sendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_entity_devoured(socketwire::ReliableConnection* connection,
@@ -69,7 +75,8 @@ void send_entity_devoured(socketwire::ReliableConnection* connection,
   bs.write<float>(newSize);
   bs.write<float>(newX);
   bs.write<float>(newY);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_score_update(socketwire::ReliableConnection* connection, std::uint16_t eid, int score)
@@ -78,7 +85,8 @@ void send_score_update(socketwire::ReliableConnection* connection, std::uint16_t
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SCORE_UPDATE);
   bs.write<std::uint16_t>(eid);
   bs.write<int>(score);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_game_time(socketwire::ReliableConnection* connection, int secondsRemaining)
@@ -86,7 +94,8 @@ void send_game_time(socketwire::ReliableConnection* connection, int secondsRemai
   socketwire::BitStream bs;
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_GAME_TIME);
   bs.write<int>(secondsRemaining);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 void send_game_over(socketwire::ReliableConnection* connection, std::uint16_t winnerEid, int winnerScore)
@@ -95,7 +104,8 @@ void send_game_over(socketwire::ReliableConnection* connection, std::uint16_t wi
   bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_GAME_OVER);
   bs.write<std::uint16_t>(winnerEid);
   bs.write<int>(winnerScore);
-  connection->sendReliable(0, bs);
+  if (connection->sendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
 }
 
 MessageType get_packet_type(const void* data, std::size_t size)

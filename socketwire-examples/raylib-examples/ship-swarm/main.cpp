@@ -4,12 +4,15 @@
 
 #include "entity.h"
 #include "protocol.h"
+#include "benchmark_utils.hpp"
 #include "reliable_connection.hpp"
 #include "socketwire_example_utils.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -120,11 +123,13 @@ public:
 
   void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
+    socketwire_examples::benchmark::recordPayloadRx(size);
     processPacket(channel, data, size);
   }
 
   void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
+    socketwire_examples::benchmark::recordPayloadRx(size);
     processPacket(channel, data, size);
   }
 
@@ -155,20 +160,22 @@ private:
   }
 };
 
-static void simulate_world(socketwire::ReliableConnection& connection)
+static void simulate_world(socketwire::ReliableConnection& connection,
+                           bool benchMode,
+                           const socketwire_examples::benchmark::Options& benchOptions,
+                           std::uint64_t benchFrame)
 {
   if (myEntity == INVALID_ENTITY)
     return;
 
-  const bool left = IsKeyDown(KEY_LEFT);
-  const bool right = IsKeyDown(KEY_RIGHT);
-  const bool up = IsKeyDown(KEY_UP);
-  const bool down = IsKeyDown(KEY_DOWN);
-
   get_entity(myEntity, [&](Entity&)
   {
-    const float thr = (up ? 1.f : 0.f) + (down ? -1.f : 0.f);
-    const float steer = (left ? -1.f : 0.f) + (right ? 1.f : 0.f);
+    const float thr = benchMode
+      ? socketwire_examples::benchmark::deterministicAxis(benchOptions.seed, benchFrame, 0)
+      : ((IsKeyDown(KEY_UP) ? 1.f : 0.f) + (IsKeyDown(KEY_DOWN) ? -1.f : 0.f));
+    const float steer = benchMode
+      ? socketwire_examples::benchmark::deterministicAxis(benchOptions.seed, benchFrame, 1)
+      : ((IsKeyDown(KEY_LEFT) ? -1.f : 0.f) + (IsKeyDown(KEY_RIGHT) ? 1.f : 0.f));
     send_entity_input(&connection, myEntity, thr, steer);
     totalOutData += static_cast<std::uint32_t>(sizeof(std::uint8_t) + sizeof(std::uint16_t) + sizeof(std::uint8_t));
   });
@@ -235,8 +242,17 @@ static void update_bandwidth(float dt, BandwidthAccumulator& accum)
   eraseOld(accum.outData);
 }
 
-int main()
+int main(int argc, const char** argv)
 {
+  auto benchOptions = socketwire_examples::benchmark::parseOptions(argc, argv, 10131);
+  socketwire_examples::benchmark::MetricsCollector metrics(
+    benchOptions, "ship-swarm", "socketwire", "client");
+  socketwire_examples::benchmark::setActiveCollector(&metrics);
+
+  const std::uint16_t connectPort = benchOptions.enabled
+    ? benchOptions.port
+    : socketwire_examples::portFromArgsOrEnv(argc, argv, 1, "SOCKETWIRE_SHIP_SWARM_PORT", 10131);
+
   auto socket = socketwire_examples::createUdpSocket(0);
   if (socket == nullptr)
     return 1;
@@ -246,33 +262,41 @@ int main()
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.setHandler(&handler);
-  connection.connect(socketwire::SocketConstants::loopback(), 10131);
+  connection.connect(socketwire_examples::resolveAddress(benchOptions.host), connectPort);
 
   int width = 600;
   int height = 600;
 
-  InitWindow(width, height, "Ship Swarm");
+  if (!benchOptions.enabled)
+    InitWindow(width, height, "Ship Swarm");
 
-  const int scrWidth = GetMonitorWidth(0);
-  const int scrHeight = GetMonitorHeight(0);
-  if (scrWidth < width || scrHeight < height)
+  if (!benchOptions.enabled)
   {
-    width = std::min(scrWidth, width);
-    height = std::min(scrHeight - 150, height);
-    SetWindowSize(width, height);
+    const int scrWidth = GetMonitorWidth(0);
+    const int scrHeight = GetMonitorHeight(0);
+    if (scrWidth < width || scrHeight < height)
+    {
+      width = std::min(scrWidth, width);
+      height = std::min(scrHeight - 150, height);
+      SetWindowSize(width, height);
+    }
   }
 
   Camera2D camera = {{0.f, 0.f}, {0.f, 0.f}, 0.f, 1.f};
   camera.offset = Vector2{width * 0.5f, height * 0.5f};
   camera.zoom = 10.f;
 
-  SetTargetFPS(60);
+  if (!benchOptions.enabled)
+    SetTargetFPS(60);
 
   bool sentJoin = false;
   BandwidthAccumulator bandwidthAccumulator;
-  while (!WindowShouldClose())
+  std::uint64_t benchFrame = 0;
+  while (benchOptions.enabled ? !metrics.done() : !WindowShouldClose())
   {
-    const float dt = GetFrameTime();
+    const auto frameStart = std::chrono::steady_clock::now();
+    const float dt = benchOptions.enabled ? (1.f / 60.f) : GetFrameTime();
+    const auto updateStart = std::chrono::steady_clock::now();
     connection.tick();
 
     if (handler.connected && !sentJoin)
@@ -283,12 +307,32 @@ int main()
     }
 
     update_bandwidth(dt, bandwidthAccumulator);
-    simulate_world(connection);
-    update_camera(camera);
-    draw_world(camera, bandwidthAccumulator);
+    simulate_world(connection, benchOptions.enabled, benchOptions, benchFrame);
+    const auto updateEnd = std::chrono::steady_clock::now();
+    if (!benchOptions.enabled)
+    {
+      update_camera(camera);
+      draw_world(camera, bandwidthAccumulator);
+    }
+    else
+    {
+      metrics.setConnectedClients(handler.connected ? 1 : 0);
+      metrics.setNetworkStats(socketwire_examples::benchmark::statsFromConnection(connection));
+      metrics.recordUpdateMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(updateEnd - updateStart).count()) / 1000.0);
+      metrics.recordFrameMs(static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now() - frameStart).count()) / 1000.0);
+      metrics.maybeWriteSample();
+      std::this_thread::sleep_for(std::chrono::milliseconds(16));
+      ++benchFrame;
+    }
   }
 
   connection.disconnect();
-  CloseWindow();
+  metrics.finish();
+  socketwire_examples::benchmark::setActiveCollector(nullptr);
+  if (!benchOptions.enabled)
+    CloseWindow();
   return 0;
 }
