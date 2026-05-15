@@ -15,25 +15,25 @@ using namespace socketwire; // NOLINT
 class ClientHandler final : public IReliableConnectionHandler
 {
 public:
-  void onConnected() override
+  void OnConnected() override
   {
     connected = true;
     std::printf("connected\n");
   }
 
-  void onDisconnected() override { connected = false; }
+  void OnDisconnected() override { connected = false; }
 
-  void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     BitStream stream(static_cast<const std::uint8_t*>(data), size);
-    const auto typeValue = stream.try_read<std::uint8_t>();
+    const auto typeValue = stream.TryRead<std::uint8_t>();
     if (!typeValue)
       return;
 
     const auto type = static_cast<channels_demo::MessageType>(*typeValue);
     if (type == channels_demo::MessageType::CommandAck)
     {
-      const auto commandId = stream.try_read<std::uint32_t>();
+      const auto commandId = stream.TryRead<std::uint32_t>();
       if (commandId)
         std::printf("channel %u reliable ack for command #%u\n", channel, *commandId);
       return;
@@ -41,9 +41,9 @@ public:
 
     if (type == channels_demo::MessageType::Snapshot)
     {
-      const auto tick = stream.try_read<std::uint32_t>();
-      const auto x = stream.try_read<float>();
-      const auto y = stream.try_read<float>();
+      const auto tick = stream.TryRead<std::uint32_t>();
+      const auto x = stream.TryRead<float>();
+      const auto y = stream.TryRead<float>();
       if (tick && x && y)
       {
         ++snapshots;
@@ -56,9 +56,9 @@ public:
     }
   }
 
-  void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
-    onReliableReceived(channel, data, size);
+    OnReliableReceived(channel, data, size);
   }
 
   bool connected = false;
@@ -70,16 +70,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_CHANNELS_DEMO_PORT", channels_demo::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), 0) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone)
   {
     std::printf("Cannot create client socket\n");
     return 1;
@@ -89,8 +89,8 @@ int main(int argc, const char** argv)
   cfg.numChannels = 2;
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
-  connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), port);
+  connection.SetHandler(&handler);
+  connection.Connect(SocketConstants::Loopback(), port);
 
   const auto started = std::chrono::steady_clock::now();
   auto lastMove = started;
@@ -99,12 +99,12 @@ int main(int argc, const char** argv)
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5))
   {
-    connection.tick();
+    connection.Tick();
 
     if (handler.connected && !commandSent)
     {
       auto command = channels_demo::make_command(1, "open-door");
-      connection.sendReliable(0, command);
+      connection.SendReliable(0, command);
       commandSent = true;
     }
 
@@ -115,7 +115,7 @@ int main(int argc, const char** argv)
       const float x = static_cast<float>(tick) * 0.25f;
       const float y = 10.0f + static_cast<float>(tick % 4);
       auto movement = channels_demo::make_movement(tick++, x, y);
-      connection.sendUnreliable(1, movement);
+      connection.SendUnreliable(1, movement);
     }
 
     if (handler.snapshots >= 5)

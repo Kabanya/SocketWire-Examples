@@ -19,16 +19,16 @@ enum class MessageType : std::uint8_t
 inline socketwire::BitStream make_sample(std::uint32_t id)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Sample));
-  stream.write<std::uint32_t>(id);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Sample));
+  stream.Write<std::uint32_t>(id);
   return stream;
 }
 
 inline socketwire::BitStream make_sample_ack(std::uint32_t id)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::SampleAck));
-  stream.write<std::uint32_t>(id);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::SampleAck));
+  stream.Write<std::uint32_t>(id);
   return stream;
 }
 

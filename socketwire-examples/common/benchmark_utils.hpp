@@ -424,10 +424,10 @@ inline void recordPayloadRx(std::size_t bytes)
 inline NetworkStats statsFromConnection(const socketwire::ReliableConnection& connection)
 {
   NetworkStats stats;
-  stats.rttMs = connection.getRTT();
-  stats.lostPackets = connection.getLostPackets();
-  stats.inflightPackets = connection.getInflightCount();
-  stats.sendWindow = connection.getSendWindow();
+  stats.rttMs = connection.GetRtt();
+  stats.lostPackets = connection.GetLostPackets();
+  stats.inflightPackets = connection.GetInflightCount();
+  stats.sendWindow = connection.GetSendWindow();
   return stats;
 }
 
@@ -438,13 +438,13 @@ inline NetworkStats statsFromClients(const ClientRange& clients)
   std::uint64_t connected = 0;
   for (auto* client : clients)
   {
-    if (client == nullptr || client->connection == nullptr || !client->connection->isConnected())
+    if (client == nullptr || client->connection == nullptr || !client->connection->IsConnected())
       continue;
 
-    stats.rttMs += client->connection->getRTT();
-    stats.lostPackets += client->connection->getLostPackets();
-    stats.inflightPackets += client->connection->getInflightCount();
-    stats.sendWindow += client->connection->getSendWindow();
+    stats.rttMs += client->connection->GetRtt();
+    stats.lostPackets += client->connection->GetLostPackets();
+    stats.inflightPackets += client->connection->GetInflightCount();
+    stats.sendWindow += client->connection->GetSendWindow();
     connected += 1;
   }
 

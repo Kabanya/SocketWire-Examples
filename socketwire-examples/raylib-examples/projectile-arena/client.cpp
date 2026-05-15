@@ -30,10 +30,10 @@ class ClientHandler final : public IReliableConnectionHandler
 public:
   explicit ClientHandler(ClientState& state) : state_(state) {}
 
-  void onConnected() override { state_.connected = true; }
-  void onDisconnected() override { state_.connected = false; }
+  void OnConnected() override { state_.connected = true; }
+  void OnDisconnected() override { state_.connected = false; }
 
-  void onReliableReceived(std::uint8_t, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t, const void* data, std::size_t size) override
   {
     BitStream stream(static_cast<const std::uint8_t*>(data), size);
     projectile_arena::MessageType type{};
@@ -59,9 +59,9 @@ public:
     }
   }
 
-  void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
-    onReliableReceived(channel, data, size);
+    OnReliableReceived(channel, data, size);
   }
 
 private:
@@ -98,16 +98,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PROJECTILE_ARENA_PORT", projectile_arena::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), 0) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone)
   {
     std::printf("Cannot create projectile-arena client socket\n");
     return 1;
@@ -118,8 +118,8 @@ int main(int argc, const char** argv)
   ReliableConnection connection(socket.get(), cfg);
   ClientState state;
   ClientHandler handler(state);
-  connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), port);
+  connection.SetHandler(&handler);
+  connection.Connect(SocketConstants::Loopback(), port);
 
   InitWindow(900, 600, "SocketWire projectile arena");
   SetTargetFPS(60);
@@ -129,12 +129,12 @@ int main(int argc, const char** argv)
 
   while (!WindowShouldClose())
   {
-    connection.tick();
+    connection.Tick();
 
     if (state.connected && !joinSent)
     {
       auto join = projectile_arena::make_join();
-      joinSent = connection.sendReliable(0, join);
+      joinSent = connection.SendReliable(0, join);
     }
 
     if (state.welcomed)
@@ -144,7 +144,7 @@ int main(int argc, const char** argv)
       input.axisX = (IsKeyDown(KEY_D) ? 1.0f : 0.0f) - (IsKeyDown(KEY_A) ? 1.0f : 0.0f);
       input.axisY = (IsKeyDown(KEY_S) ? 1.0f : 0.0f) - (IsKeyDown(KEY_W) ? 1.0f : 0.0f);
       auto inputPacket = projectile_arena::make_input(input);
-      connection.sendUnreliable(1, inputPacket);
+      connection.SendUnreliable(1, inputPacket);
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_SPACE))
       {
@@ -154,7 +154,7 @@ int main(int argc, const char** argv)
         fire.aimX = mouse.x;
         fire.aimY = mouse.y;
         auto firePacket = projectile_arena::make_fire(fire);
-        connection.sendReliable(0, firePacket);
+        connection.SendReliable(0, firePacket);
       }
     }
 
@@ -184,7 +184,7 @@ int main(int argc, const char** argv)
     DrawText(TextFormat("player %u  snapshot %u  rtt %.1fms",
                         state.playerId,
                         state.snapshot.tick,
-                        connection.getRTT()),
+                        connection.GetRtt()),
              20,
              20,
              18,

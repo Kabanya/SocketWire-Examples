@@ -15,16 +15,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), port) != SocketError::kNone)
   {
     printf("Cannot create server socket\n");
     return 1;

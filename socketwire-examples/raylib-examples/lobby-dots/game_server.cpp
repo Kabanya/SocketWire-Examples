@@ -35,8 +35,8 @@ static void send_text(socketwire_examples::ServerConnectionHub::Client& client,
 {
   const std::size_t bytes = text.size() + 1;
   const bool sent = reliable
-    ? client.connection->sendReliable(0, text.c_str(), bytes)
-    : client.connection->sendUnsequenced(0, text.c_str(), bytes);
+    ? client.connection->SendReliable(0, text.c_str(), bytes)
+    : client.connection->SendUnsequenced(0, text.c_str(), bytes);
   if (sent)
     socketwire_examples::benchmark::recordPayloadTx(bytes);
 }
@@ -119,7 +119,7 @@ int main(int argc, const char** argv)
     newPlayer.name = "Player_" + std::to_string(newPlayer.id);
     newPlayer.x = static_cast<float>(GetRandomValue(100, 500));
     newPlayer.y = static_cast<float>(GetRandomValue(100, 300));
-    newPlayer.ping = static_cast<int>(client.connection->getRTT());
+    newPlayer.ping = static_cast<int>(client.connection->GetRtt());
     newPlayer.client = &client;
 
     const std::string welcomeMsg = "WELCOME " + std::to_string(newPlayer.id) + " " + newPlayer.name;
@@ -156,7 +156,7 @@ int main(int argc, const char** argv)
     if (it == players.end())
       return;
 
-    it->ping = static_cast<int>(client.connection->getRTT());
+    it->ping = static_cast<int>(client.connection->GetRtt());
     const std::string msg = socketwire_examples::readStringPayload(data, size);
 
     if (msg.substr(0, 3) == "POS")

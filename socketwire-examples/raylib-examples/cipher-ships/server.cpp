@@ -56,7 +56,7 @@ static std::uint16_t next_entity_id()
 static void broadcast_entity(socketwire_examples::ServerConnectionHub& hub, const Entity& ent)
 {
   for (auto* client : hub.clients())
-    if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+    if (client != nullptr && client->connection != nullptr && client->connection->IsConnected())
       send_new_entity(client->connection.get(), ent);
 }
 
@@ -187,7 +187,7 @@ int main(int argc, const char** argv)
     {
       simulate_entity(e, dt);
       for (auto* client : hub.clients())
-        if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+        if (client != nullptr && client->connection != nullptr && client->connection->IsConnected())
           send_snapshot(client->connection.get(), e.eid, e.x, e.y, e.ori);
     }
     const auto updateEnd = std::chrono::steady_clock::now();

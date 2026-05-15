@@ -7,48 +7,48 @@
 void send_join(socketwire::ReliableConnection* connection)
 {
   socketwire::BitStream bs;
-  bs.write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
-  if (connection->sendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
+  bs.Write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
+  if (connection->SendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
 void send_new_entity(socketwire::ReliableConnection* connection, const Entity& ent)
 {
   socketwire::BitStream bs;
-  bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_NEW_ENTITY);
-  bs.write<std::uint32_t>(ent.color);
-  bs.write<float>(ent.x);
-  bs.write<float>(ent.y);
-  bs.write<std::uint16_t>(ent.eid);
-  bs.write<float>(ent.vx);
-  bs.write<float>(ent.vy);
-  bs.write<float>(ent.ori);
-  bs.write<float>(ent.omega);
-  bs.write<float>(ent.thr);
-  bs.write<float>(ent.steer);
-  bs.write<std::uint16_t>(ent.eid);
-  if (connection->sendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
+  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_NEW_ENTITY);
+  bs.Write<std::uint32_t>(ent.color);
+  bs.Write<float>(ent.x);
+  bs.Write<float>(ent.y);
+  bs.Write<std::uint16_t>(ent.eid);
+  bs.Write<float>(ent.vx);
+  bs.Write<float>(ent.vy);
+  bs.Write<float>(ent.ori);
+  bs.Write<float>(ent.omega);
+  bs.Write<float>(ent.thr);
+  bs.Write<float>(ent.steer);
+  bs.Write<std::uint16_t>(ent.eid);
+  if (connection->SendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
 void send_set_controlled_entity(socketwire::ReliableConnection* connection, std::uint16_t eid)
 {
   socketwire::BitStream bs;
-  bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
-  bs.write<std::uint16_t>(eid);
-  if (connection->sendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
+  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
+  bs.Write<std::uint16_t>(eid);
+  if (connection->SendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
 void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t eid, float thr, float steer)
 {
   socketwire::BitStream bs;
-  bs.write<std::uint8_t>(E_CLIENT_TO_SERVER_INPUT);
-  bs.write<std::uint16_t>(eid);
-  bs.write<float>(thr);
-  bs.write<float>(steer);
-  if (connection->sendUnsequenced(1, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
+  bs.Write<std::uint8_t>(E_CLIENT_TO_SERVER_INPUT);
+  bs.Write<std::uint16_t>(eid);
+  bs.Write<float>(thr);
+  bs.Write<float>(steer);
+  if (connection->SendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
 void send_snapshot(socketwire::ReliableConnection* connection,
@@ -67,27 +67,27 @@ void send_snapshot(socketwire::ReliableConnection* connection,
     static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
 
   socketwire::BitStream bs;
-  bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_SNAPSHOT);
-  bs.write<std::uint16_t>(eid);
-  bs.write<float>(x);
-  bs.write<float>(y);
-  bs.write<float>(ori);
-  bs.write<float>(vx);
-  bs.write<float>(vy);
-  bs.write<float>(omega);
-  bs.write<std::uint64_t>(timestampMs);
-  bs.write<std::uint32_t>(frameNumber);
-  if (connection->sendUnsequenced(1, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
+  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SNAPSHOT);
+  bs.Write<std::uint16_t>(eid);
+  bs.Write<float>(x);
+  bs.Write<float>(y);
+  bs.Write<float>(ori);
+  bs.Write<float>(vx);
+  bs.Write<float>(vy);
+  bs.Write<float>(omega);
+  bs.Write<std::uint64_t>(timestampMs);
+  bs.Write<std::uint32_t>(frameNumber);
+  if (connection->SendUnsequenced(1, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
 void send_time_msec(socketwire::ReliableConnection* connection, std::uint32_t timeMsec)
 {
   socketwire::BitStream bs;
-  bs.write<std::uint8_t>(E_SERVER_TO_CLIENT_TIME_MSEC);
-  bs.write<std::uint32_t>(timeMsec);
-  if (connection->sendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.getSizeBytes());
+  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_TIME_MSEC);
+  bs.Write<std::uint32_t>(timeMsec);
+  if (connection->SendReliable(0, bs))
+    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
 MessageType get_packet_type(const void* data, std::size_t size)
@@ -101,36 +101,36 @@ void deserialize_new_entity(const void* data, std::size_t size, Entity& ent)
 {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.read<std::uint8_t>(type);
-  bs.read<std::uint32_t>(ent.color);
-  bs.read<float>(ent.x);
-  bs.read<float>(ent.y);
-  bs.read<std::uint16_t>(ent.eid);
-  bs.read<float>(ent.vx);
-  bs.read<float>(ent.vy);
-  bs.read<float>(ent.ori);
-  bs.read<float>(ent.omega);
-  bs.read<float>(ent.thr);
-  bs.read<float>(ent.steer);
-  bs.read<std::uint16_t>(ent.eid);
+  bs.Read<std::uint8_t>(type);
+  bs.Read<std::uint32_t>(ent.color);
+  bs.Read<float>(ent.x);
+  bs.Read<float>(ent.y);
+  bs.Read<std::uint16_t>(ent.eid);
+  bs.Read<float>(ent.vx);
+  bs.Read<float>(ent.vy);
+  bs.Read<float>(ent.ori);
+  bs.Read<float>(ent.omega);
+  bs.Read<float>(ent.thr);
+  bs.Read<float>(ent.steer);
+  bs.Read<std::uint16_t>(ent.eid);
 }
 
 void deserialize_set_controlled_entity(const void* data, std::size_t size, std::uint16_t& eid)
 {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.read<std::uint8_t>(type);
-  bs.read<std::uint16_t>(eid);
+  bs.Read<std::uint8_t>(type);
+  bs.Read<std::uint16_t>(eid);
 }
 
 void deserialize_entity_input(const void* data, std::size_t size, std::uint16_t& eid, float& thr, float& steer)
 {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.read<std::uint8_t>(type);
-  bs.read<std::uint16_t>(eid);
-  bs.read<float>(thr);
-  bs.read<float>(steer);
+  bs.Read<std::uint8_t>(type);
+  bs.Read<std::uint16_t>(eid);
+  bs.Read<float>(thr);
+  bs.Read<float>(steer);
 }
 
 void deserialize_snapshot(const void* data,
@@ -147,18 +147,18 @@ void deserialize_snapshot(const void* data,
 {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.read<std::uint8_t>(type);
-  bs.read<std::uint16_t>(eid);
-  bs.read<float>(x);
-  bs.read<float>(y);
-  bs.read<float>(ori);
-  bs.read<float>(vx);
-  bs.read<float>(vy);
-  bs.read<float>(omega);
+  bs.Read<std::uint8_t>(type);
+  bs.Read<std::uint16_t>(eid);
+  bs.Read<float>(x);
+  bs.Read<float>(y);
+  bs.Read<float>(ori);
+  bs.Read<float>(vx);
+  bs.Read<float>(vy);
+  bs.Read<float>(omega);
 
   std::uint64_t timestampMs = 0;
-  bs.read<std::uint64_t>(timestampMs);
-  bs.read<std::uint32_t>(frameNumber);
+  bs.Read<std::uint64_t>(timestampMs);
+  bs.Read<std::uint32_t>(frameNumber);
   timestamp = TimePoint(std::chrono::milliseconds(timestampMs));
 }
 
@@ -166,6 +166,6 @@ void deserialize_time_msec(const void* data, std::size_t size, std::uint32_t& ti
 {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.read<std::uint8_t>(type);
-  bs.read<std::uint32_t>(timeMsec);
+  bs.Read<std::uint8_t>(type);
+  bs.Read<std::uint32_t>(timeMsec);
 }

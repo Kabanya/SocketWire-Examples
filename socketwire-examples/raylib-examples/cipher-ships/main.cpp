@@ -61,16 +61,16 @@ static void on_key(const void* data, std::size_t size)
 class ClientHandler final : public socketwire::IReliableConnectionHandler
 {
 public:
-  void onConnected() override { connected = true; }
-  void onDisconnected() override { connected = false; }
+  void OnConnected() override { connected = true; }
+  void OnDisconnected() override { connected = false; }
 
-  void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     socketwire_examples::benchmark::recordPayloadRx(size);
     processPacket(channel, data, size);
   }
 
-  void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     socketwire_examples::benchmark::recordPayloadRx(size);
     processPacket(channel, data, size);
@@ -121,8 +121,8 @@ int main(int argc, const char** argv)
   cfg.numChannels = 2;
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
-  connection.setHandler(&handler);
-  connection.connect(socketwire_examples::resolveAddress(benchOptions.host), connectPort);
+  connection.SetHandler(&handler);
+  connection.Connect(socketwire_examples::resolveAddress(benchOptions.host), connectPort);
 
   int width = 600;
   int height = 600;
@@ -155,7 +155,7 @@ int main(int argc, const char** argv)
   {
     const auto frameStart = std::chrono::steady_clock::now();
     const auto updateStart = std::chrono::steady_clock::now();
-    connection.tick();
+    connection.Tick();
 
     if (handler.connected && !sentJoin)
     {
@@ -209,7 +209,7 @@ int main(int argc, const char** argv)
     }
   }
 
-  connection.disconnect();
+  connection.Disconnect();
   metrics.finish();
   socketwire_examples::benchmark::setActiveCollector(nullptr);
   if (!benchOptions.enabled)

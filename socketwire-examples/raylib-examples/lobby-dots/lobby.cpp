@@ -19,7 +19,7 @@ struct GameServerInfo
 static void send_text(socketwire_examples::ServerConnectionHub::Client& client, const std::string& text)
 {
   const std::size_t bytes = text.size() + 1;
-  if (client.connection->sendReliable(0, text.c_str(), bytes))
+  if (client.connection->SendReliable(0, text.c_str(), bytes))
     socketwire_examples::benchmark::recordPayloadTx(bytes);
 }
 
@@ -96,7 +96,7 @@ int main(int argc, const char** argv)
         "GAMESERVER " + gameServer.host + " " + std::to_string(gameServer.port);
 
       for (auto* peer : connectedClients)
-        if (peer != nullptr && peer->connection != nullptr && peer->connection->isConnected())
+        if (peer != nullptr && peer->connection != nullptr && peer->connection->IsConnected())
           send_text(*peer, gameServerMsg);
 
       std::printf("Sent game server info to all connected players: %s\n", gameServerMsg.c_str());

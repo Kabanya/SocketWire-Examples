@@ -21,37 +21,37 @@ enum class MessageType : std::uint8_t
 inline socketwire::BitStream make_command(std::uint32_t commandId, const std::string& text)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Command));
-  stream.write<std::uint32_t>(commandId);
-  stream.write(text);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Command));
+  stream.Write<std::uint32_t>(commandId);
+  stream.Write(text);
   return stream;
 }
 
 inline socketwire::BitStream make_command_ack(std::uint32_t commandId)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::CommandAck));
-  stream.write<std::uint32_t>(commandId);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::CommandAck));
+  stream.Write<std::uint32_t>(commandId);
   return stream;
 }
 
 inline socketwire::BitStream make_movement(std::uint32_t tick, float x, float y)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Movement));
-  stream.write<std::uint32_t>(tick);
-  stream.write<float>(x);
-  stream.write<float>(y);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Movement));
+  stream.Write<std::uint32_t>(tick);
+  stream.Write<float>(x);
+  stream.Write<float>(y);
   return stream;
 }
 
 inline socketwire::BitStream make_snapshot(std::uint32_t tick, float x, float y)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Snapshot));
-  stream.write<std::uint32_t>(tick);
-  stream.write<float>(x);
-  stream.write<float>(y);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Snapshot));
+  stream.Write<std::uint32_t>(tick);
+  stream.Write<float>(x);
+  stream.Write<float>(y);
   return stream;
 }
 

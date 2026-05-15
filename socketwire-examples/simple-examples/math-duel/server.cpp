@@ -26,20 +26,20 @@ std::string client_to_string(const Client& client)
   // Convert IPv4 address from host order to dotted decimal
   uint32_t hostAddr = client.addr.ipv4.hostOrderAddress;
   char buf[16]; // INET_ADDRSTRLEN
-  SocketConstants::formatIPv4(hostAddr, buf, sizeof(buf));
+  SocketConstants::FormatIPv4(hostAddr, buf, sizeof(buf));
   return std::string(buf) + ":" + std::to_string(client.port);
 }
 
 void msg_to_all_clients(const std::vector<Client>& clients, const std::string& message)
 {
   BitStream stream;
-  stream.write(message);
+  stream.Write(message);
 
   for (const Client& client : clients)
   {
     if (serverSocket)
     {
-      serverSocket->sendTo(stream.getData(), stream.getSizeBytes(), client.addr, client.port);
+      serverSocket->SendTo(stream.GetData(), stream.GetSizeBytes(), client.addr, client.port);
     }
   }
   printf("msg to all clients: %s\n", message.c_str());
@@ -48,10 +48,10 @@ void msg_to_all_clients(const std::vector<Client>& clients, const std::string& m
 void msg_to_client(const Client& client, const std::string& message)
 {
   BitStream stream;
-  stream.write(message);
+  stream.Write(message);
   if (serverSocket)
   {
-    serverSocket->sendTo(stream.getData(), stream.getSizeBytes(), client.addr, client.port);
+    serverSocket->SendTo(stream.GetData(), stream.GetSizeBytes(), client.addr, client.port);
   }
   printf("msg to client: %s\n", message.c_str());
 }
@@ -266,7 +266,7 @@ void mathduel(const std::string& message, const Client& current_client, std::vec
 class ServerHandler : public ISocketEventHandler
 {
 public:
-  void onDataReceived(const SocketAddress& from, std::uint16_t fromPort,
+  void OnDataReceived(const SocketAddress& from, std::uint16_t fromPort,
                       const void* data, std::size_t bytesRead) override
   {
     if (bytesRead == 0)
@@ -274,7 +274,7 @@ public:
 
     BitStream stream(reinterpret_cast<const uint8_t*>(data), bytesRead);
     std::string message;
-    stream.read(message);
+    stream.Read(message);
 
     Client currentClient;
     currentClient.addr = from;
@@ -317,7 +317,7 @@ public:
       printf("(%s) %s\n", currentClient.id.c_str(), message.c_str());
     }
   }
-  void onSocketError(SocketError errorCode) override
+  void OnSocketError(SocketError errorCode) override
   {
     std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
   }
@@ -326,7 +326,7 @@ public:
 int main(int argc, const char** argv)
 {
   // Initialize socket factory
-  socketwire::initialize_sockets();
+  socketwire::InitializeSockets();
 
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_MATH_DUEL_PORT", 2025);
@@ -334,22 +334,22 @@ int main(int argc, const char** argv)
   ServerHandler handler;
 
   // Create socket factory and socket
-  auto factory = SocketFactoryRegistry::getFactory();
+  auto factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     printf("Socket factory not initialized\n");
     return 1;
   }
 
-  serverSocket = factory->createUDPSocket(SocketConfig{});
+  serverSocket = factory->CreateUdpSocket(SocketConfig{});
   if (!serverSocket)
   {
     printf("Cannot create socket\n");
     return 1;
   }
 
-  SocketAddress bindAddr = SocketConstants::any();
-  if (serverSocket->bind(bindAddr, port) != SocketError::None)
+  SocketAddress bindAddr = SocketConstants::Any();
+  if (serverSocket->Bind(bindAddr, port) != SocketError::kNone)
   {
     printf("cannot bind socket\n");
     return 1;
@@ -358,7 +358,7 @@ int main(int argc, const char** argv)
 
   while (true)
   {
-    serverSocket->poll(&handler);
+    serverSocket->Poll(&handler);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   return 0;

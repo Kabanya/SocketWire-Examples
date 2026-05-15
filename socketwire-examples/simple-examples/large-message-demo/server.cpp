@@ -18,19 +18,19 @@ static void handle_blob(socketwire_examples::ServerConnectionHub::Client& client
                         std::size_t size)
 {
   BitStream stream(static_cast<const std::uint8_t*>(data), size);
-  const auto typeValue = stream.try_read<std::uint8_t>();
-  const auto declaredSize = stream.try_read<std::uint32_t>();
-  const auto expectedChecksum = stream.try_read<std::uint32_t>();
+  const auto typeValue = stream.TryRead<std::uint8_t>();
+  const auto declaredSize = stream.TryRead<std::uint32_t>();
+  const auto expectedChecksum = stream.TryRead<std::uint32_t>();
   if (!typeValue || !declaredSize || !expectedChecksum ||
       static_cast<large_message_demo::MessageType>(*typeValue) != large_message_demo::MessageType::Blob)
   {
     return;
   }
 
-  std::vector<std::uint8_t> payload(stream.getRemainingBytes());
+  std::vector<std::uint8_t> payload(stream.GetRemainingBytes());
   try
   {
-    stream.readBytes(payload.data(), payload.size());
+    stream.ReadBytes(payload.data(), payload.size());
   }
   catch (...)
   {
@@ -49,7 +49,7 @@ static void handle_blob(socketwire_examples::ServerConnectionHub::Client& client
   auto ack = large_message_demo::make_ack(static_cast<std::uint32_t>(payload.size()),
                                           *expectedChecksum,
                                           actualChecksum);
-  client.connection->sendReliable(0, ack);
+  client.connection->SendReliable(0, ack);
 }
 
 int main(int argc, const char** argv)
@@ -57,16 +57,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_LARGE_MESSAGE_DEMO_PORT", large_message_demo::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), port) != SocketError::kNone)
   {
     std::printf("Cannot bind large-message-demo server\n");
     return 1;

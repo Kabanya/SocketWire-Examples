@@ -61,7 +61,7 @@ static std::uint16_t create_random_entity()
 static void broadcast_new_entity(socketwire_examples::ServerConnectionHub& hub, const Entity& ent)
 {
   for (auto* client : hub.clients())
-    if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+    if (client != nullptr && client->connection != nullptr && client->connection->IsConnected())
       send_new_entity(client->connection.get(), ent);
 }
 
@@ -102,7 +102,7 @@ static void send_to_all(socketwire_examples::ServerConnectionHub& hub,
                         int value)
 {
   for (auto* client : hub.clients())
-    if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+    if (client != nullptr && client->connection != nullptr && client->connection->IsConnected())
       sendFn(client->connection.get(), value);
 }
 
@@ -216,7 +216,7 @@ int main(int argc, const char** argv)
           }
 
           for (auto* client : hub.clients())
-            if (client != nullptr && client->connection != nullptr && client->connection->isConnected())
+            if (client != nullptr && client->connection != nullptr && client->connection->IsConnected())
               send_game_over(client->connection.get(), winnerEid, highestScore);
         }
       }
@@ -277,7 +277,7 @@ int main(int argc, const char** argv)
 
             for (auto* client : hub.clients())
             {
-              if (client == nullptr || client->connection == nullptr || !client->connection->isConnected())
+              if (client == nullptr || client->connection == nullptr || !client->connection->IsConnected())
                 continue;
               send_score_update(client->connection.get(), devourer->eid, devourer->score);
             }
@@ -287,7 +287,7 @@ int main(int argc, const char** argv)
 
             for (auto* client : hub.clients())
             {
-              if (client == nullptr || client->connection == nullptr || !client->connection->isConnected())
+              if (client == nullptr || client->connection == nullptr || !client->connection->IsConnected())
                 continue;
               send_entity_devoured(client->connection.get(),
                                    devoured->eid,
@@ -308,7 +308,7 @@ int main(int argc, const char** argv)
     {
       for (auto* client : hub.clients())
       {
-        if (client == nullptr || client->connection == nullptr || !client->connection->isConnected())
+        if (client == nullptr || client->connection == nullptr || !client->connection->IsConnected())
           continue;
         if (controlledMap[e.eid] != client)
           send_snapshot(client->connection.get(), e.eid, e.x, e.y, e.size);

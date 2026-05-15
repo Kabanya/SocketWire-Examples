@@ -68,7 +68,7 @@ PlayerState& ensure_player(Client& client)
   std::printf("player %u joined from port %u\n", id, client.port);
 
   auto welcome = projectile_arena::make_welcome(id);
-  client.connection->sendReliable(0, welcome);
+  client.connection->SendReliable(0, welcome);
   return inserted->second;
 }
 
@@ -187,7 +187,7 @@ void broadcast_snapshot()
   for (auto& entry : players)
   {
     auto& player = entry.second;
-    player.client->connection->sendUnsequenced(1, snapshot);
+    player.client->connection->SendUnsequenced(1, snapshot);
   }
 }
 
@@ -198,16 +198,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PROJECTILE_ARENA_PORT", projectile_arena::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), port) != SocketError::kNone)
   {
     std::printf("Cannot bind projectile-arena server\n");
     return 1;

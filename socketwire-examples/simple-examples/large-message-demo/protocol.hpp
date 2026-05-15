@@ -40,20 +40,20 @@ inline std::vector<std::uint8_t> make_payload()
 inline socketwire::BitStream make_blob(std::vector<std::uint8_t> const& payload)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Blob));
-  stream.write<std::uint32_t>(static_cast<std::uint32_t>(payload.size()));
-  stream.write<std::uint32_t>(checksum(payload));
-  stream.writeBytes(payload.data(), payload.size());
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Blob));
+  stream.Write<std::uint32_t>(static_cast<std::uint32_t>(payload.size()));
+  stream.Write<std::uint32_t>(checksum(payload));
+  stream.WriteBytes(payload.data(), payload.size());
   return stream;
 }
 
 inline socketwire::BitStream make_ack(std::uint32_t size, std::uint32_t expected, std::uint32_t actual)
 {
   socketwire::BitStream stream;
-  stream.write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::BlobAck));
-  stream.write<std::uint32_t>(size);
-  stream.write<std::uint32_t>(expected);
-  stream.write<std::uint32_t>(actual);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::BlobAck));
+  stream.Write<std::uint32_t>(size);
+  stream.Write<std::uint32_t>(expected);
+  stream.Write<std::uint32_t>(actual);
   return stream;
 }
 

@@ -15,24 +15,24 @@ using namespace socketwire; // NOLINT
 class ClientHandler final : public IReliableConnectionHandler
 {
 public:
-  void onConnected() override
+  void OnConnected() override
   {
     connected = true;
     std::printf("connected\n");
   }
 
-  void onDisconnected() override { connected = false; }
+  void OnDisconnected() override { connected = false; }
 
-  void onReliableReceived(std::uint8_t, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t, const void* data, std::size_t size) override
   {
     BitStream stream(static_cast<const std::uint8_t*>(data), size);
-    const auto typeValue = stream.try_read<std::uint8_t>();
+    const auto typeValue = stream.TryRead<std::uint8_t>();
     if (!typeValue || static_cast<large_message_demo::MessageType>(*typeValue) != large_message_demo::MessageType::BlobAck)
       return;
 
-    const auto receivedSize = stream.try_read<std::uint32_t>();
-    const auto expectedChecksum = stream.try_read<std::uint32_t>();
-    const auto actualChecksum = stream.try_read<std::uint32_t>();
+    const auto receivedSize = stream.TryRead<std::uint32_t>();
+    const auto expectedChecksum = stream.TryRead<std::uint32_t>();
+    const auto actualChecksum = stream.TryRead<std::uint32_t>();
     if (!receivedSize || !expectedChecksum || !actualChecksum)
       return;
 
@@ -43,7 +43,7 @@ public:
                 ackOk ? "ok" : "bad");
   }
 
-  void onUnreliableReceived(std::uint8_t, const void*, std::size_t) override {}
+  void OnUnreliableReceived(std::uint8_t, const void*, std::size_t) override {}
 
   bool connected = false;
   bool ackOk = false;
@@ -54,16 +54,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_LARGE_MESSAGE_DEMO_PORT", large_message_demo::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), 0) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone)
   {
     std::printf("Cannot create client socket\n");
     return 1;
@@ -74,20 +74,20 @@ int main(int argc, const char** argv)
   cfg.maxPacketSize = 256;
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
-  connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), port);
+  connection.SetHandler(&handler);
+  connection.Connect(SocketConstants::Loopback(), port);
 
   const auto started = std::chrono::steady_clock::now();
   bool sent = false;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5))
   {
-    connection.tick();
+    connection.Tick();
     if (handler.connected && !sent)
     {
       const auto payload = large_message_demo::make_payload();
       auto blob = large_message_demo::make_blob(payload);
-      sent = connection.sendReliable(0, blob);
+      sent = connection.SendReliable(0, blob);
       std::printf("sent %zu-byte payload through %u-byte packets: %s\n",
                   payload.size(),
                   cfg.maxPacketSize,

@@ -7,14 +7,6 @@ CPMAddPackage(
     SPDLOG_USE_STD_FORMAT ON  # std::format from C++20
 )
 
-# A profiler for both CPU and GPU
-CPMAddPackage(
-  GITHUB_REPOSITORY wolfpld/tracy
-  GIT_TAG v0.13.0
-  OPTIONS
-    "TRACY_ON_DEMAND ON"
-)
-
 # core library here - SocketWire
 CPMAddPackage(
   NAME socketwire

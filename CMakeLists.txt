@@ -43,8 +43,10 @@ endif ()
 # No profiling in release builds, mostly because Tracy emmits warnings in that case.
 option(TRACY_ENABLE "Enable profiling" ${SOCKETWIRE_DEBUG})
 
-# Uncomment to contribute into SocketWire (clone SocketWire to the same folder)
-# set(CPM_socketwire_SOURCE "${PROJECT_SOURCE_DIR}/../SocketWire")
+# Use a sibling SocketWire checkout while developing both repositories together.
+if (EXISTS "${PROJECT_SOURCE_DIR}/../SocketWire/CMakeLists.txt")
+    set(CPM_socketwire_SOURCE "${PROJECT_SOURCE_DIR}/../SocketWire")
+endif ()
 
 include("cmake/get_cpm.cmake")
 include("cmake/thirdparty.cmake")

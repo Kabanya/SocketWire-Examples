@@ -14,22 +14,22 @@ using namespace socketwire; // NOLINT
 class ClientHandler final : public IReliableConnectionHandler
 {
 public:
-  void onConnected() override
+  void OnConnected() override
   {
     connected = true;
     printf("Connection established\n");
   }
 
-  void onDisconnected() override { connected = false; }
+  void OnDisconnected() override { connected = false; }
 
-  void onReliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
+  void OnReliableReceived([[maybe_unused]] std::uint8_t channel, const void* data, std::size_t size) override
   {
     printf("Packet received '%.*s'\n", static_cast<int>(size), static_cast<const char*>(data));
   }
 
-  void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
-    onReliableReceived(channel, data, size);
+    OnReliableReceived(channel, data, size);
   }
 
   bool connected = false;
@@ -40,16 +40,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), 0) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone)
   {
     printf("Cannot create client socket\n");
     return 1;
@@ -59,15 +59,15 @@ int main(int argc, const char** argv)
   cfg.numChannels = 2;
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
-  connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), port);
+  connection.SetHandler(&handler);
+  connection.Connect(SocketConstants::Loopback(), port);
 
   auto lastSend = std::chrono::steady_clock::now();
   int counter = 0;
 
   while (true)
   {
-    connection.tick();
+    connection.Tick();
     if (handler.connected)
     {
       auto now = std::chrono::steady_clock::now();
@@ -75,7 +75,7 @@ int main(int argc, const char** argv)
       {
         lastSend = now;
         std::string packet = "packet#" + std::to_string(counter++);
-        connection.sendReliable(1, packet.c_str(), packet.size() + 1);
+        connection.SendReliable(1, packet.c_str(), packet.size() + 1);
       }
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));

@@ -70,11 +70,7 @@ inline std::uint16_t portFromArgsOrEnv(int argc,
 
 inline std::unique_ptr<socketwire::ISocket> createUdpSocket(std::uint16_t port)
 {
-  if (!socketwire::InitializeSockets())
-  {
-    std::printf("Cannot init SocketWire\n");
-    return nullptr;
-  }
+  socketwire::InitializeSockets();
 
   auto* factory = socketwire::SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)

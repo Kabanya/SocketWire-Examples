@@ -6,23 +6,23 @@
 
 int main()
 {
-  const auto init = socketwire::crypto::initialize();
+  const auto init = socketwire::crypto::Initialize();
   if (!init.ok)
   {
-    std::printf("crypto is unavailable: %s\n", socketwire::crypto::to_string(init.error));
+    std::printf("crypto is unavailable: %s\n", socketwire::crypto::ToString(init.error));
     return 0;
   }
 
 #if SOCKETWIRE_HAVE_LIBSODIUM
-  if (!socketwire::crypto::cipherSuiteSupported(socketwire::crypto::CipherSuite::XChaCha20Poly1305))
+  if (!socketwire::crypto::CipherSuiteSupported(socketwire::crypto::CipherSuite::kXChaCha20Poly1305))
   {
     std::printf("XChaCha20-Poly1305 is not supported by this build\n");
     return 0;
   }
 
-  const auto clientKeys = socketwire::crypto::KeyPair::generate();
-  const auto serverKeys = socketwire::crypto::KeyPair::generate();
-  if (!clientKeys.valid() || !serverKeys.valid())
+  const auto clientKeys = socketwire::crypto::KeyPair::Generate();
+  const auto serverKeys = socketwire::crypto::KeyPair::Generate();
+  if (!clientKeys.Valid() || !serverKeys.Valid())
   {
     std::printf("key generation failed\n");
     return 1;
@@ -30,34 +30,34 @@ int main()
 
   socketwire::crypto::HandshakeState client;
   socketwire::crypto::HandshakeState server;
-  client.startClient(clientKeys);
-  server.startServer(serverKeys);
+  client.StartClient(clientKeys);
+  server.StartServer(serverKeys);
 
   socketwire::BitStream clientHello;
-  auto result = client.writeClientHello(clientHello);
-  if (!result.ok || !server.processClientHello(clientHello.getData(), clientHello.getSizeBytes()))
+  auto result = client.WriteClientHello(clientHello);
+  if (!result.ok || !server.ProcessClientHello(clientHello.GetData(), clientHello.GetSizeBytes()))
   {
     std::printf("client hello failed\n");
     return 1;
   }
 
   socketwire::BitStream serverHello;
-  result = server.writeServerHello(serverHello);
-  if (!result.ok || !client.processServerHello(serverHello.getData(), serverHello.getSizeBytes()))
+  result = server.WriteServerHello(serverHello);
+  if (!result.ok || !client.ProcessServerHello(serverHello.GetData(), serverHello.GetSizeBytes()))
   {
     std::printf("server hello failed\n");
     return 1;
   }
 
-  if (!client.completed() || !server.completed())
+  if (!client.Completed() || !server.Completed())
   {
     std::printf("handshake did not complete\n");
     return 1;
   }
 
-  auto clientCrypto = client.createClientCryptoContext();
-  auto serverCrypto = server.createServerCryptoContext();
-  if (!clientCrypto.isReady() || !serverCrypto.isReady())
+  auto clientCrypto = client.CreateClientCryptoContext();
+  auto serverCrypto = server.CreateServerCryptoContext();
+  if (!clientCrypto.IsReady() || !serverCrypto.IsReady())
   {
     std::printf("crypto contexts are not ready\n");
     return 1;
@@ -65,7 +65,7 @@ int main()
 
   const std::string plain = "secure-ping";
   socketwire::BitStream encrypted;
-  if (!clientCrypto.encrypt(7,
+  if (!clientCrypto.Encrypt(7,
                             reinterpret_cast<const unsigned char*>(plain.data()),
                             plain.size(),
                             encrypted))
@@ -75,15 +75,15 @@ int main()
   }
 
   socketwire::BitStream decrypted;
-  if (!serverCrypto.decrypt(7, encrypted.getData(), encrypted.getSizeBytes(), decrypted))
+  if (!serverCrypto.Decrypt(7, encrypted.GetData(), encrypted.GetSizeBytes(), decrypted))
   {
     std::printf("decrypt failed\n");
     return 1;
   }
 
-  const std::string roundTrip(reinterpret_cast<const char*>(decrypted.getData()), decrypted.getSizeBytes());
+  const std::string roundTrip(reinterpret_cast<const char*>(decrypted.GetData()), decrypted.GetSizeBytes());
   std::printf("handshake completed; encrypted %zu bytes; decrypted='%s'\n",
-              encrypted.getSizeBytes(),
+              encrypted.GetSizeBytes(),
               roundTrip.c_str());
   return roundTrip == plain ? 0 : 1;
 #else

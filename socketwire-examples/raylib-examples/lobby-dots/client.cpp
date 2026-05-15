@@ -38,8 +38,8 @@ static void send_text(socketwire::ReliableConnection& connection,
 {
   const std::size_t bytes = text.size() + 1;
   const bool sent = reliable
-    ? connection.sendReliable(0, text.c_str(), bytes)
-    : connection.sendUnsequenced(0, text.c_str(), bytes);
+    ? connection.SendReliable(0, text.c_str(), bytes)
+    : connection.SendUnsequenced(0, text.c_str(), bytes);
   if (sent)
     socketwire_examples::benchmark::recordPayloadTx(bytes);
 }
@@ -54,7 +54,7 @@ static void send_fragmented_packet(socketwire::ReliableConnection& connection)
   for (std::size_t i = 0; i < SEND_SIZE - 1; ++i)
     hugeMessage[i] = baseMsg[i % msgLen];
 
-  if (connection.sendReliable(0, hugeMessage.c_str(), hugeMessage.size()))
+  if (connection.SendReliable(0, hugeMessage.c_str(), hugeMessage.size()))
     socketwire_examples::benchmark::recordPayloadTx(hugeMessage.size());
 }
 
@@ -85,7 +85,7 @@ public:
   {
   }
 
-  void onConnected() override
+  void OnConnected() override
   {
     if (target_ == ConnectionTarget::Lobby)
     {
@@ -99,7 +99,7 @@ public:
     }
   }
 
-  void onDisconnected() override
+  void OnDisconnected() override
   {
     if (target_ == ConnectionTarget::Lobby)
     {
@@ -113,13 +113,13 @@ public:
     }
   }
 
-  void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     socketwire_examples::benchmark::recordPayloadRx(size);
     handlePacket(channel, data, size);
   }
 
-  void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     socketwire_examples::benchmark::recordPayloadRx(size);
     handlePacket(channel, data, size);
@@ -286,8 +286,8 @@ int main(int argc, const char** argv)
 
   ClientState state;
   ClientHandler lobbyHandler(state, ConnectionTarget::Lobby);
-  lobbyConnection.setHandler(&lobbyHandler);
-  lobbyConnection.connect(socketwire_examples::resolveAddress(benchOptions.host), connectLobbyPort);
+  lobbyConnection.SetHandler(&lobbyHandler);
+  lobbyConnection.Connect(socketwire_examples::resolveAddress(benchOptions.host), connectLobbyPort);
 
   std::unique_ptr<socketwire::ISocket> gameSocket;
   std::unique_ptr<socketwire::ReliableConnection> gameConnection;
@@ -310,9 +310,9 @@ int main(int argc, const char** argv)
     const float dt = benchOptions.enabled ? (1.f / 60.f) : GetFrameTime();
 
     const auto updateStart = std::chrono::steady_clock::now();
-    lobbyConnection.tick();
+    lobbyConnection.Tick();
     if (gameConnection != nullptr)
-      gameConnection->tick();
+      gameConnection->Tick();
 
     if (!state.pendingGameHost.empty() && gameConnection == nullptr)
     {
@@ -321,8 +321,8 @@ int main(int argc, const char** argv)
       {
         gameConnection = std::make_unique<socketwire::ReliableConnection>(gameSocket.get(), cfg);
         gameHandler = std::make_unique<ClientHandler>(state, ConnectionTarget::Game);
-        gameConnection->setHandler(gameHandler.get());
-        gameConnection->connect(socketwire_examples::resolveAddress(state.pendingGameHost), state.pendingGamePort);
+        gameConnection->SetHandler(gameHandler.get());
+        gameConnection->Connect(socketwire_examples::resolveAddress(state.pendingGameHost), state.pendingGamePort);
       }
       else
       {
@@ -444,9 +444,9 @@ int main(int argc, const char** argv)
     }
   }
 
-  lobbyConnection.disconnect();
+  lobbyConnection.Disconnect();
   if (gameConnection != nullptr)
-    gameConnection->disconnect();
+    gameConnection->Disconnect();
 
   metrics.finish();
   socketwire_examples::benchmark::setActiveCollector(nullptr);

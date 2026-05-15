@@ -3,11 +3,11 @@
 #include "i_socket.hpp"
 #include "reliable_connection.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -37,7 +37,10 @@ public:
   }
 
   void setConnectedCallback(ConnectedCallback callback) { onConnected_ = std::move(callback); }
-  void setDisconnectedCallback(DisconnectedCallback callback) { onDisconnected_ = std::move(callback); }
+  void setDisconnectedCallback(DisconnectedCallback callback)
+  {
+    onDisconnected_ = std::move(callback);
+  }
   void setPacketCallback(PacketCallback callback) { onPacket_ = std::move(callback); }
 
   void poll()
@@ -61,12 +64,6 @@ public:
           continue;
         client = createClient(fromAddr, fromPort);
       }
-      else if (isConnectPacket(buffer, static_cast<std::size_t>(result.bytes)) &&
-               client->connection != nullptr &&
-               client->connection->IsConnected())
-      {
-        resetClient(*static_cast<ClientRecord*>(client));
-      }
 
       client->connection->ProcessPacket(
         buffer, static_cast<std::size_t>(result.bytes), fromAddr, fromPort);
@@ -81,10 +78,10 @@ public:
         client->connection->Update();
     }
 
-    std::erase_if(clients_, [this](const auto& client)
-    {
-      if (client->connection == nullptr ||
-          client->connection->GetState() != socketwire::ConnectionState::kDisconnected)
+    std::erase_if(clients_, [this](const auto& client) {
+      if (
+        client->connection == nullptr ||
+        client->connection->GetState() != socketwire::ConnectionState::kDisconnected)
         return false;
 
       clientMap_.erase(makeKey(client->address, client->port));
@@ -157,6 +154,41 @@ private:
     std::unique_ptr<ClientHandler> handler;
   };
 
+  struct ConnectionKey
+  {
+    bool isIPv6 = false;
+    std::uint16_t port = 0;
+    std::uint32_t ipv4 = 0;
+    std::array<std::uint8_t, 16> ipv6{};
+    std::uint32_t scopeId = 0;
+
+    bool operator==(const ConnectionKey& other) const
+    {
+      return isIPv6 == other.isIPv6 && port == other.port && ipv4 == other.ipv4 &&
+        ipv6 == other.ipv6 && scopeId == other.scopeId;
+    }
+  };
+
+  struct ConnectionKeyHash
+  {
+    std::size_t operator()(const ConnectionKey& key) const
+    {
+      std::size_t h = std::hash<std::uint16_t>{}(key.port);
+      h ^= std::hash<bool>{}(key.isIPv6) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      if (key.isIPv6)
+      {
+        for (const auto byte : key.ipv6)
+          h ^= std::hash<std::uint8_t>{}(byte) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+        h ^= std::hash<std::uint32_t>{}(key.scopeId) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      }
+      else
+      {
+        h ^= std::hash<std::uint32_t>{}(key.ipv4) + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      }
+      return h;
+    }
+  };
+
   Client* createClient(const socketwire::SocketAddress& address, std::uint16_t port)
   {
     auto record = std::make_unique<ClientRecord>();
@@ -186,15 +218,27 @@ private:
     return packetType == static_cast<std::uint8_t>(socketwire::PacketType::kConnect);
   }
 
-  static std::string makeKey(const socketwire::SocketAddress& address, std::uint16_t port)
+  static ConnectionKey makeKey(const socketwire::SocketAddress& address, std::uint16_t port)
   {
-    return socketwire::MakeConnectionKey(address, port);
+    ConnectionKey key;
+    key.isIPv6 = address.isIPv6;
+    key.port = port;
+    if (address.isIPv6)
+    {
+      key.ipv6 = address.ipv6.bytes;
+      key.scopeId = address.ipv6.scopeId;
+    }
+    else
+    {
+      key.ipv4 = address.ipv4.hostOrderAddress;
+    }
+    return key;
   }
 
   socketwire::ISocket* socket_ = nullptr;
   socketwire::ReliableConnectionConfig config_{};
   std::vector<std::unique_ptr<ClientRecord>> clients_;
-  std::unordered_map<std::string, Client*> clientMap_;
+  std::unordered_map<ConnectionKey, Client*, ConnectionKeyHash> clientMap_;
   ConnectedCallback onConnected_;
   DisconnectedCallback onDisconnected_;
   PacketCallback onPacket_;

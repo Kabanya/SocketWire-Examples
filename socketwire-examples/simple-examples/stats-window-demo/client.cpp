@@ -15,19 +15,19 @@ using namespace socketwire; // NOLINT
 class ClientHandler final : public IReliableConnectionHandler
 {
 public:
-  void onConnected() override
+  void OnConnected() override
   {
     connected = true;
     std::printf("connected\n");
   }
 
-  void onDisconnected() override { connected = false; }
+  void OnDisconnected() override { connected = false; }
 
-  void onReliableReceived(std::uint8_t, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t, const void* data, std::size_t size) override
   {
     BitStream stream(static_cast<const std::uint8_t*>(data), size);
-    const auto typeValue = stream.try_read<std::uint8_t>();
-    const auto id = stream.try_read<std::uint32_t>();
+    const auto typeValue = stream.TryRead<std::uint8_t>();
+    const auto id = stream.TryRead<std::uint32_t>();
     if (!typeValue || !id ||
         static_cast<stats_window_demo::MessageType>(*typeValue) != stats_window_demo::MessageType::SampleAck)
     {
@@ -38,7 +38,7 @@ public:
     std::printf("user ack for sample #%u (%u/%u)\n", *id, acks, stats_window_demo::K_PACKET_COUNT);
   }
 
-  void onUnreliableReceived(std::uint8_t, const void*, std::size_t) override {}
+  void OnUnreliableReceived(std::uint8_t, const void*, std::size_t) override {}
 
   bool connected = false;
   std::uint32_t acks = 0;
@@ -49,16 +49,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_STATS_WINDOW_DEMO_PORT", stats_window_demo::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), 0) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone)
   {
     std::printf("Cannot create client socket\n");
     return 1;
@@ -71,8 +71,8 @@ int main(int argc, const char** argv)
   cfg.pingIntervalMs = 250;
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
-  connection.setHandler(&handler);
-  connection.connect(SocketConstants::loopback(), port);
+  connection.SetHandler(&handler);
+  connection.Connect(SocketConstants::Loopback(), port);
 
   const auto started = std::chrono::steady_clock::now();
   auto lastStats = started;
@@ -80,12 +80,12 @@ int main(int argc, const char** argv)
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(6))
   {
-    connection.tick();
+    connection.Tick();
 
     while (handler.connected && nextSample < stats_window_demo::K_PACKET_COUNT)
     {
       auto sample = stats_window_demo::make_sample(nextSample);
-      if (!connection.sendReliable(0, sample))
+      if (!connection.SendReliable(0, sample))
         break;
       ++nextSample;
     }
@@ -95,12 +95,12 @@ int main(int argc, const char** argv)
     {
       lastStats = now;
       std::printf("stats: sent=%u received=%u lost=%u inflight=%u window=%u rtt=%.1fms queued=%u\n",
-                  connection.getSentPackets(),
-                  connection.getReceivedPackets(),
-                  connection.getLostPackets(),
-                  connection.getInflightCount(),
-                  connection.getSendWindow(),
-                  connection.getRTT(),
+                  connection.GetSentPackets(),
+                  connection.GetReceivedPackets(),
+                  connection.GetLostPackets(),
+                  connection.GetInflightCount(),
+                  connection.GetSendWindow(),
+                  connection.GetRtt(),
                   nextSample);
     }
 
@@ -111,12 +111,12 @@ int main(int argc, const char** argv)
   }
 
   std::printf("final stats: sent=%u received=%u lost=%u inflight=%u window=%u rtt=%.1fms\n",
-              connection.getSentPackets(),
-              connection.getReceivedPackets(),
-              connection.getLostPackets(),
-              connection.getInflightCount(),
-              connection.getSendWindow(),
-              connection.getRTT());
+              connection.GetSentPackets(),
+              connection.GetReceivedPackets(),
+              connection.GetLostPackets(),
+              connection.GetInflightCount(),
+              connection.GetSendWindow(),
+              connection.GetRtt());
   std::printf("stats-window-demo finished with %u user-level acks\n", handler.acks);
   return handler.acks == stats_window_demo::K_PACKET_COUNT ? 0 : 1;
 }

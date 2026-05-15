@@ -209,7 +209,7 @@ static void on_time(const void* data, std::size_t size, const socketwire::Reliab
 {
   std::uint32_t timeMsec = 0;
   deserialize_time_msec(data, size, timeMsec);
-  estimatedServerTimeMsec = timeMsec + static_cast<std::uint32_t>(connection.getRTT() * 0.5f);
+  estimatedServerTimeMsec = timeMsec + static_cast<std::uint32_t>(connection.GetRtt() * 0.5f);
 }
 
 static void draw_entity(const Entity& e)
@@ -234,16 +234,16 @@ public:
   {
   }
 
-  void onConnected() override { connected = true; }
-  void onDisconnected() override { connected = false; }
+  void OnConnected() override { connected = true; }
+  void OnDisconnected() override { connected = false; }
 
-  void onReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnReliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     socketwire_examples::benchmark::recordPayloadRx(size);
     processPacket(channel, data, size);
   }
 
-  void onUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
+  void OnUnreliableReceived(std::uint8_t channel, const void* data, std::size_t size) override
   {
     socketwire_examples::benchmark::recordPayloadRx(size);
     processPacket(channel, data, size);
@@ -416,8 +416,8 @@ int main(int argc, const char** argv)
   cfg.numChannels = 2;
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler(connection);
-  connection.setHandler(&handler);
-  connection.connect(socketwire_examples::resolveAddress(benchOptions.host), connectPort);
+  connection.SetHandler(&handler);
+  connection.Connect(socketwire_examples::resolveAddress(benchOptions.host), connectPort);
 
   int width = 600;
   int height = 600;
@@ -456,7 +456,7 @@ int main(int argc, const char** argv)
     accumulator += frameTime;
 
     const auto updateStart = std::chrono::steady_clock::now();
-    connection.tick();
+    connection.Tick();
     if (handler.connected && !sentJoin)
     {
       send_join(&connection);
@@ -491,7 +491,7 @@ int main(int argc, const char** argv)
     }
   }
 
-  connection.disconnect();
+  connection.Disconnect();
   metrics.finish();
   socketwire_examples::benchmark::setActiveCollector(nullptr);
   if (!benchOptions.enabled)

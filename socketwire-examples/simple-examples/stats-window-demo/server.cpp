@@ -17,8 +17,8 @@ static void handle_sample(socketwire_examples::ServerConnectionHub::Client& clie
                           std::size_t size)
 {
   BitStream stream(static_cast<const std::uint8_t*>(data), size);
-  const auto typeValue = stream.try_read<std::uint8_t>();
-  const auto id = stream.try_read<std::uint32_t>();
+  const auto typeValue = stream.TryRead<std::uint8_t>();
+  const auto id = stream.TryRead<std::uint32_t>();
   if (!typeValue || !id ||
       static_cast<stats_window_demo::MessageType>(*typeValue) != stats_window_demo::MessageType::Sample)
   {
@@ -27,7 +27,7 @@ static void handle_sample(socketwire_examples::ServerConnectionHub::Client& clie
 
   std::printf("sample #%u received; replying with reliable ack\n", *id);
   auto ack = stats_window_demo::make_sample_ack(*id);
-  client.connection->sendReliable(0, ack);
+  client.connection->SendReliable(0, ack);
 }
 
 int main(int argc, const char** argv)
@@ -35,16 +35,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_STATS_WINDOW_DEMO_PORT", stats_window_demo::K_PORT);
 
-  initialize_sockets();
-  auto* factory = SocketFactoryRegistry::getFactory();
+  InitializeSockets();
+  auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::printf("Cannot init SocketWire\n");
     return 1;
   }
 
-  auto socket = factory->createUDPSocket(SocketConfig{});
-  if (socket == nullptr || socket->bind(SocketConstants::any(), port) != SocketError::None)
+  auto socket = factory->CreateUdpSocket(SocketConfig{});
+  if (socket == nullptr || socket->Bind(SocketConstants::Any(), port) != SocketError::kNone)
   {
     std::printf("Cannot bind stats-window-demo server\n");
     return 1;

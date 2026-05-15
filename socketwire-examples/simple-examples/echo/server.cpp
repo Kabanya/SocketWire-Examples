@@ -13,12 +13,12 @@ using namespace socketwire; //NOLINT
 class PrintHandler : public ISocketEventHandler
 {
 public:
-  void onDataReceived([[maybe_unused]]const SocketAddress& from, [[maybe_unused]]std::uint16_t fromPort,
+  void OnDataReceived([[maybe_unused]]const SocketAddress& from, [[maybe_unused]]std::uint16_t fromPort,
                       const void* data, std::size_t bytesRead) override
   {
     std::cout << "Received: " << std::string(static_cast<const char*>(data), bytesRead) << std::endl;
   }
-  void onSocketError(SocketError errorCode) override
+  void OnSocketError(SocketError errorCode) override
   {
     std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
   }
@@ -34,16 +34,16 @@ int main(int argc, const char** argv)
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_ECHO_PORT", 40404);
 
-  socketwire::initialize_sockets();
+  socketwire::InitializeSockets();
 
-  auto factory = SocketFactoryRegistry::getFactory();
+  auto factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr)
   {
     std::cout << "Socket factory not initialized\n";
     return 1;
   }
 
-  auto server = factory->createUDPSocket(SocketConfig{});
+  auto server = factory->CreateUdpSocket(SocketConfig{});
   if (!server)
   {
     std::cout << "Cannot create socket\n";
@@ -52,8 +52,8 @@ int main(int argc, const char** argv)
 
   PrintHandler handler;
 
-  SocketAddress bindAddr = SocketConstants::any();
-  if (server->bind(bindAddr, port) != SocketError::None)
+  SocketAddress bindAddr = SocketConstants::Any();
+  if (server->Bind(bindAddr, port) != SocketError::kNone)
   {
     std::cout << "Bind failed\n";
     return 1;
@@ -61,7 +61,7 @@ int main(int argc, const char** argv)
   std::cout << "Server listening on port " << port << "\n";
   while (true)
   {
-    server->poll(&handler);
+    server->Poll(&handler);
     std::this_thread::sleep_for(std::chrono::microseconds(10000));
   }
 }
