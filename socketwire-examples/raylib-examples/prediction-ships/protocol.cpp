@@ -4,16 +4,15 @@
 #include "bit_stream.hpp"
 #include "reliable_connection.hpp"
 
-void send_join(socketwire::ReliableConnection* connection)
-{
+void send_join(socketwire::ReliableConnection* connection) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
   if (connection->SendReliable(0, bs))
     socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
-void send_new_entity(socketwire::ReliableConnection* connection, const Entity& ent)
-{
+void send_new_entity(socketwire::ReliableConnection* connection,
+                     const Entity& ent) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_NEW_ENTITY);
   bs.Write<std::uint32_t>(ent.color);
@@ -31,8 +30,8 @@ void send_new_entity(socketwire::ReliableConnection* connection, const Entity& e
     socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
-void send_set_controlled_entity(socketwire::ReliableConnection* connection, std::uint16_t eid)
-{
+void send_set_controlled_entity(socketwire::ReliableConnection* connection,
+                                std::uint16_t eid) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
   bs.Write<std::uint16_t>(eid);
@@ -40,8 +39,8 @@ void send_set_controlled_entity(socketwire::ReliableConnection* connection, std:
     socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
-void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t eid, float thr, float steer)
-{
+void send_entity_input(socketwire::ReliableConnection* connection,
+                       std::uint16_t eid, float thr, float steer) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(E_CLIENT_TO_SERVER_INPUT);
   bs.Write<std::uint16_t>(eid);
@@ -52,19 +51,12 @@ void send_entity_input(socketwire::ReliableConnection* connection, std::uint16_t
 }
 
 void send_snapshot(socketwire::ReliableConnection* connection,
-                   std::uint16_t eid,
-                   float x,
-                   float y,
-                   float ori,
-                   float vx,
-                   float vy,
-                   float omega,
-                   TimePoint timestamp,
-                   std::uint32_t frameNumber)
-{
+                   std::uint16_t eid, float x, float y, float ori, float vx,
+                   float vy, float omega, TimePoint timestamp,
+                   std::uint32_t frameNumber) {
   const auto duration = timestamp.time_since_epoch();
-  const auto timestampMs =
-    static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
+  const auto timestampMs = static_cast<std::uint64_t>(
+    std::chrono::duration_cast<std::chrono::milliseconds>(duration).count());
 
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SNAPSHOT);
@@ -81,8 +73,8 @@ void send_snapshot(socketwire::ReliableConnection* connection,
     socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
-void send_time_msec(socketwire::ReliableConnection* connection, std::uint32_t timeMsec)
-{
+void send_time_msec(socketwire::ReliableConnection* connection,
+                    std::uint32_t timeMsec) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_TIME_MSEC);
   bs.Write<std::uint32_t>(timeMsec);
@@ -90,15 +82,12 @@ void send_time_msec(socketwire::ReliableConnection* connection, std::uint32_t ti
     socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
 }
 
-MessageType get_packet_type(const void* data, std::size_t size)
-{
-  if (data == nullptr || size < 1)
-    return E_CLIENT_TO_SERVER_JOIN;
+MessageType get_packet_type(const void* data, std::size_t size) {
+  if (data == nullptr || size < 1) return E_CLIENT_TO_SERVER_JOIN;
   return static_cast<MessageType>(*static_cast<const std::uint8_t*>(data));
 }
 
-void deserialize_new_entity(const void* data, std::size_t size, Entity& ent)
-{
+void deserialize_new_entity(const void* data, std::size_t size, Entity& ent) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
@@ -115,16 +104,16 @@ void deserialize_new_entity(const void* data, std::size_t size, Entity& ent)
   bs.Read<std::uint16_t>(ent.eid);
 }
 
-void deserialize_set_controlled_entity(const void* data, std::size_t size, std::uint16_t& eid)
-{
+void deserialize_set_controlled_entity(const void* data, std::size_t size,
+                                       std::uint16_t& eid) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
   bs.Read<std::uint16_t>(eid);
 }
 
-void deserialize_entity_input(const void* data, std::size_t size, std::uint16_t& eid, float& thr, float& steer)
-{
+void deserialize_entity_input(const void* data, std::size_t size,
+                              std::uint16_t& eid, float& thr, float& steer) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
@@ -133,18 +122,10 @@ void deserialize_entity_input(const void* data, std::size_t size, std::uint16_t&
   bs.Read<float>(steer);
 }
 
-void deserialize_snapshot(const void* data,
-                          std::size_t size,
-                          std::uint16_t& eid,
-                          float& x,
-                          float& y,
-                          float& ori,
-                          float& vx,
-                          float& vy,
-                          float& omega,
-                          TimePoint& timestamp,
-                          std::uint32_t& frameNumber)
-{
+void deserialize_snapshot(const void* data, std::size_t size,
+                          std::uint16_t& eid, float& x, float& y, float& ori,
+                          float& vx, float& vy, float& omega,
+                          TimePoint& timestamp, std::uint32_t& frameNumber) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
@@ -162,8 +143,8 @@ void deserialize_snapshot(const void* data,
   timestamp = TimePoint(std::chrono::milliseconds(timestampMs));
 }
 
-void deserialize_time_msec(const void* data, std::size_t size, std::uint32_t& timeMsec)
-{
+void deserialize_time_msec(const void* data, std::size_t size,
+                           std::uint32_t& timeMsec) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);

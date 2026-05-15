@@ -1,44 +1,39 @@
 #pragma once
 
-#include "bit_stream.hpp"
-
 #include <cstdint>
 #include <cstring>
 #include <vector>
 
-namespace large_message_demo
-{
+#include "bit_stream.hpp"
+
+namespace large_message_demo {
 
 constexpr std::uint16_t K_PORT = 53475;
 constexpr std::size_t K_PAYLOAD_SIZE = 4096;
 
-enum class MessageType : std::uint8_t
-{
+enum class MessageType : std::uint8_t {
   Blob = 1,
   BlobAck = 2,
 };
 
-inline std::uint32_t checksum(std::vector<std::uint8_t> const& bytes)
-{
+inline std::uint32_t checksum(std::vector<std::uint8_t> const& bytes) {
   std::uint32_t hash = 2166136261u;
-  for (const auto byte : bytes)
-  {
+  for (const auto byte : bytes) {
     hash ^= byte;
     hash *= 16777619u;
   }
   return hash;
 }
 
-inline std::vector<std::uint8_t> make_payload()
-{
+inline std::vector<std::uint8_t> make_payload() {
   std::vector<std::uint8_t> payload(K_PAYLOAD_SIZE);
   for (std::size_t i = 0; i < payload.size(); ++i)
     payload[i] = static_cast<std::uint8_t>((i * 31u + i / 7u) & 0xffu);
   return payload;
 }
 
-inline socketwire::BitStream make_blob(std::vector<std::uint8_t> const& payload)
-{
+inline socketwire::BitStream make_blob(
+  std::vector<std::uint8_t> const& payload) {
   socketwire::BitStream stream;
   stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Blob));
   stream.Write<std::uint32_t>(static_cast<std::uint32_t>(payload.size()));
@@ -47,8 +42,9 @@ inline socketwire::BitStream make_blob(std::vector<std::uint8_t> const& payload)
   return stream;
 }
 
-inline socketwire::BitStream make_ack(std::uint32_t size, std::uint32_t expected, std::uint32_t actual)
-{
+inline socketwire::BitStream make_ack(std::uint32_t size,
+                                      std::uint32_t expected,
+                                      std::uint32_t actual) {
   socketwire::BitStream stream;
   stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::BlobAck));
   stream.Write<std::uint32_t>(size);
@@ -57,4 +53,4 @@ inline socketwire::BitStream make_ack(std::uint32_t size, std::uint32_t expected
   return stream;
 }
 
-} // namespace large_message_demo
+}  // namespace large_message_demo

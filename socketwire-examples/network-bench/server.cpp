@@ -1,20 +1,17 @@
-#include "netbench_common.hpp"
-#include "server_connection_hub.hpp"
-#include "socketwire_example_utils.hpp"
-
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <thread>
 
-namespace
-{
+#include "netbench_common.hpp"
+#include "server_connection_hub.hpp"
+#include "socketwire_example_utils.hpp"
+
+namespace {
 
 bool sendEcho(socketwire_examples::ServerConnectionHub::Client& client,
-              const netbench::PacketHeader& header,
-              const void* data,
-              std::size_t size)
-{
+              const netbench::PacketHeader& header, const void* data,
+              std::size_t size) {
   if (client.connection == nullptr || !client.connection->IsConnected())
     return false;
 
@@ -24,19 +21,23 @@ bool sendEcho(socketwire_examples::ServerConnectionHub::Client& client,
   payload[4] = static_cast<std::uint8_t>(netbench::PacketKind::Echo);
 
   if ((header.flags & netbench::FlagReliable) != 0)
-    return client.connection->SendReliable(header.channel, payload.data(), copySize);
+    return client.connection->SendReliable(header.channel, payload.data(),
+                                           copySize);
   if ((header.flags & netbench::FlagUnsequenced) != 0)
-    return client.connection->SendUnsequenced(header.channel, payload.data(), copySize);
-  return client.connection->SendUnreliable(header.channel, payload.data(), copySize);
+    return client.connection->SendUnsequenced(header.channel, payload.data(),
+                                              copySize);
+  return client.connection->SendUnreliable(header.channel, payload.data(),
+                                           copySize);
 }
 
-netbench::TransportStats transportStats(const std::vector<socketwire_examples::ServerConnectionHub::Client*>& clients)
-{
+netbench::TransportStats transportStats(
+  const std::vector<socketwire_examples::ServerConnectionHub::Client*>&
+    clients) {
   netbench::TransportStats stats;
   std::uint64_t connected = 0;
-  for (const auto* client : clients)
-  {
-    if (client == nullptr || client->connection == nullptr || !client->connection->IsConnected())
+  for (const auto* client : clients) {
+    if (client == nullptr || client->connection == nullptr ||
+        !client->connection->IsConnected())
       continue;
     stats.rttMs += client->connection->GetRtt();
     stats.lostPackets += client->connection->GetLostPackets();
@@ -44,21 +45,18 @@ netbench::TransportStats transportStats(const std::vector<socketwire_examples::S
     stats.sendWindow += client->connection->GetSendWindow();
     connected += 1;
   }
-  if (connected > 0)
-    stats.rttMs /= static_cast<double>(connected);
+  if (connected > 0) stats.rttMs /= static_cast<double>(connected);
   return stats;
 }
 
-} // namespace
+}  // namespace
 
-int main(int argc, const char** argv)
-{
+int main(int argc, const char** argv) {
   auto options = netbench::parseOptions(argc, argv, 53490);
   options.enabled = true;
 
   auto socket = socketwire_examples::createUdpSocket(options.port);
-  if (socket == nullptr)
-    return 1;
+  if (socket == nullptr) return 1;
 
   socketwire::ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
@@ -76,19 +74,16 @@ int main(int argc, const char** argv)
   netbench::MetricsWriter metrics(options, "socketwire", "server");
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
 
-  hub.setPacketCallback([&](auto& client, std::uint8_t, const void* data, std::size_t size, bool)
-  {
-    netbench::PacketHeader header;
-    if (!netbench::parseHeader(data, size, header))
-      return;
-    if (netbench::measured(header))
-      stats.noteRx(size);
-    if (sendEcho(client, header, data, size) && netbench::measured(header))
-      stats.noteTx(size, false);
-  });
+  hub.setPacketCallback(
+    [&](auto& client, std::uint8_t, const void* data, std::size_t size, bool) {
+      netbench::PacketHeader header;
+      if (!netbench::parseHeader(data, size, header)) return;
+      if (netbench::measured(header)) stats.noteRx(size);
+      if (sendEcho(client, header, data, size) && netbench::measured(header))
+        stats.noteTx(size, false);
+    });
 
-  while (!metrics.done())
-  {
+  while (!metrics.done()) {
     const auto loopStart = std::chrono::steady_clock::now();
     hub.poll();
     hub.update();
@@ -98,8 +93,11 @@ int main(int argc, const char** argv)
     metrics.maybeWriteSample(stats, transportStats(clients));
 
     const auto loopEnd = std::chrono::steady_clock::now();
-    stats.noteUpdateMs(static_cast<double>(
-      std::chrono::duration_cast<std::chrono::microseconds>(loopEnd - loopStart).count()) / 1000.0);
+    stats.noteUpdateMs(
+      static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+                            loopEnd - loopStart)
+                            .count()) /
+      1000.0);
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 

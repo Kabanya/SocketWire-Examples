@@ -5,9 +5,11 @@
 
 #include "bit_stream.hpp"
 
-namespace projectile_arena {
+namespace persistent_arena {
 
-constexpr std::uint16_t K_PORT = 53477;
+constexpr std::uint16_t K_PORT = 53478;
+constexpr float K_WORLD_WIDTH = 900.0f;
+constexpr float K_WORLD_HEIGHT = 600.0f;
 
 enum class MessageType : std::uint8_t {
   Join = 1,
@@ -33,6 +35,7 @@ struct PlayerSnapshot {
   std::uint16_t id = 0;
   float x = 0.0f;
   float y = 0.0f;
+  std::uint32_t score = 0;
 };
 
 struct ProjectileSnapshot {
@@ -42,10 +45,20 @@ struct ProjectileSnapshot {
   float y = 0.0f;
 };
 
+struct ResourceSnapshot {
+  std::uint16_t id = 0;
+  float x = 0.0f;
+  float y = 0.0f;
+  float radius = 0.0f;
+  std::uint16_t value = 0;
+};
+
 struct WorldSnapshot {
   std::uint32_t tick = 0;
+  std::uint32_t globalScore = 0;
   std::vector<PlayerSnapshot> players;
   std::vector<ProjectileSnapshot> projectiles;
+  std::vector<ResourceSnapshot> resources;
 };
 
 inline socketwire::BitStream make_join() {
@@ -83,12 +96,15 @@ inline socketwire::BitStream make_snapshot(const WorldSnapshot& snapshot) {
   socketwire::BitStream stream;
   stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Snapshot));
   stream.Write<std::uint32_t>(snapshot.tick);
+  stream.Write<std::uint32_t>(snapshot.globalScore);
+
   stream.Write<std::uint16_t>(
     static_cast<std::uint16_t>(snapshot.players.size()));
   for (const auto& player : snapshot.players) {
     stream.Write<std::uint16_t>(player.id);
     stream.Write<float>(player.x);
     stream.Write<float>(player.y);
+    stream.Write<std::uint32_t>(player.score);
   }
 
   stream.Write<std::uint16_t>(
@@ -98,6 +114,16 @@ inline socketwire::BitStream make_snapshot(const WorldSnapshot& snapshot) {
     stream.Write<std::uint16_t>(projectile.ownerId);
     stream.Write<float>(projectile.x);
     stream.Write<float>(projectile.y);
+  }
+
+  stream.Write<std::uint16_t>(
+    static_cast<std::uint16_t>(snapshot.resources.size()));
+  for (const auto& resource : snapshot.resources) {
+    stream.Write<std::uint16_t>(resource.id);
+    stream.Write<float>(resource.x);
+    stream.Write<float>(resource.y);
+    stream.Write<float>(resource.radius);
+    stream.Write<std::uint16_t>(resource.value);
   }
   return stream;
 }
@@ -138,18 +164,21 @@ inline bool read_fire(socketwire::BitStream& stream, FireCommand& fire) {
 inline bool read_snapshot(socketwire::BitStream& stream,
                           WorldSnapshot& snapshot) {
   const auto tick = stream.TryRead<std::uint32_t>();
+  const auto globalScore = stream.TryRead<std::uint32_t>();
   const auto playerCount = stream.TryRead<std::uint16_t>();
-  if (!tick || !playerCount) return false;
+  if (!tick || !globalScore || !playerCount) return false;
 
   snapshot = {};
   snapshot.tick = *tick;
+  snapshot.globalScore = *globalScore;
   snapshot.players.reserve(*playerCount);
   for (std::uint16_t i = 0; i < *playerCount; ++i) {
     const auto id = stream.TryRead<std::uint16_t>();
     const auto x = stream.TryRead<float>();
     const auto y = stream.TryRead<float>();
-    if (!id || !x || !y) return false;
-    snapshot.players.push_back(PlayerSnapshot{*id, *x, *y});
+    const auto score = stream.TryRead<std::uint32_t>();
+    if (!id || !x || !y || !score) return false;
+    snapshot.players.push_back(PlayerSnapshot{*id, *x, *y, *score});
   }
 
   const auto projectileCount = stream.TryRead<std::uint16_t>();
@@ -164,7 +193,22 @@ inline bool read_snapshot(socketwire::BitStream& stream,
     if (!id || !ownerId || !x || !y) return false;
     snapshot.projectiles.push_back(ProjectileSnapshot{*id, *ownerId, *x, *y});
   }
+
+  const auto resourceCount = stream.TryRead<std::uint16_t>();
+  if (!resourceCount) return false;
+
+  snapshot.resources.reserve(*resourceCount);
+  for (std::uint16_t i = 0; i < *resourceCount; ++i) {
+    const auto id = stream.TryRead<std::uint16_t>();
+    const auto x = stream.TryRead<float>();
+    const auto y = stream.TryRead<float>();
+    const auto radius = stream.TryRead<float>();
+    const auto value = stream.TryRead<std::uint16_t>();
+    if (!id || !x || !y || !radius || !value) return false;
+    snapshot.resources.push_back(
+      ResourceSnapshot{*id, *x, *y, *radius, *value});
+  }
   return true;
 }
 
-}  // namespace projectile_arena
+}  // namespace persistent_arena

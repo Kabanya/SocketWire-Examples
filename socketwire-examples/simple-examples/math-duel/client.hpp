@@ -5,4 +5,4 @@ void receive_messages(int sfd);
 
 void display_help();
 
-#endif // CLIENT_TEST_SOCKET_H
+#endif  // CLIENT_TEST_SOCKET_H

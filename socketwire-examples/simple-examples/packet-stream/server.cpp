@@ -1,31 +1,29 @@
+#include <chrono>
+#include <cstdio>
+#include <thread>
+
 #include "i_socket.hpp"
 #include "server_connection_hub.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
 #include "socketwire_example_utils.hpp"
 
-#include <chrono>
-#include <cstdio>
-#include <thread>
+using namespace socketwire;  // NOLINT
 
-using namespace socketwire; // NOLINT
-
-int main(int argc, const char** argv)
-{
+int main(int argc, const char** argv) {
   const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
 
   InitializeSockets();
   auto* factory = SocketFactoryRegistry::GetFactory();
-  if (factory == nullptr)
-  {
+  if (factory == nullptr) {
     printf("Cannot init SocketWire\n");
     return 1;
   }
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
-  if (socket == nullptr || socket->Bind(SocketConstants::Any(), port) != SocketError::kNone)
-  {
+  if (socket == nullptr ||
+      socket->Bind(SocketConstants::Any(), port) != SocketError::kNone) {
     printf("Cannot create server socket\n");
     return 1;
   }
@@ -33,18 +31,19 @@ int main(int argc, const char** argv)
   socketwire::ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
-  hub.setConnectedCallback([](auto& client)
-  {
-    printf("Connection with %u:%u established\n", client.address.ipv4.hostOrderAddress, client.port);
+  hub.setConnectedCallback([](auto& client) {
+    printf("Connection with %u:%u established\n",
+           client.address.ipv4.hostOrderAddress, client.port);
   });
-  hub.setPacketCallback([](auto&, std::uint8_t, const void* data, std::size_t size, bool)
-  {
-    printf("Packet received '%.*s'\n", static_cast<int>(size), static_cast<const char*>(data));
-  });
+  hub.setPacketCallback(
+    [](auto&, std::uint8_t, const void* data, std::size_t size, bool) {
+      printf("Packet received '%.*s'\n", static_cast<int>(size),
+             static_cast<const char*>(data));
+    });
 
-  printf("packet-stream server listening on port %u\n", static_cast<unsigned>(port));
-  while (true)
-  {
+  printf("packet-stream server listening on port %u\n",
+         static_cast<unsigned>(port));
+  while (true) {
     hub.poll();
     hub.update();
     std::this_thread::sleep_for(std::chrono::milliseconds(1));

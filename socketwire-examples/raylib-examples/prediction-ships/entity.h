@@ -2,8 +2,7 @@
 #include <cstdint>
 
 constexpr uint16_t INVALID_ENTITY = -1;
-struct Entity
-{
+struct Entity {
   // immutable state
   uint32_t color = 0xff00ffff;
 
@@ -23,5 +22,4 @@ struct Entity
   uint16_t eid = INVALID_ENTITY;
 };
 
-void simulate_entity(Entity &e, float dt);
-
+void simulate_entity(Entity& e, float dt);

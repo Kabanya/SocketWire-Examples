@@ -1,8 +1,8 @@
 #include "entity.h"
+
 #include "mathUtils.h"
 
-float tile_val(float val, float border)
-{
+float tile_val(float val, float border) {
   if (val < -border)
     return val + 2.f * border;
   else if (val > border)
@@ -10,8 +10,7 @@ float tile_val(float val, float border)
   return val;
 }
 
-void simulate_entity(Entity &e, float dt)
-{
+void simulate_entity(Entity& e, float dt) {
   bool isBraking = sign(e.thr) < 0.f;
   float accel = isBraking ? 6.f : 1.5f;
   float va = clamp(e.thr, -0.3, 1.f) * accel;
@@ -29,4 +28,3 @@ void simulate_entity(Entity &e, float dt)
   e.x = tile_val(e.x, WORLD_SIZE);
   e.y = tile_val(e.y, WORLD_SIZE);
 }
-

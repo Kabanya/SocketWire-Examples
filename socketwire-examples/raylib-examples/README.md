@@ -12,6 +12,7 @@ Interactive SocketWire examples built with Raylib.
 | `ship-swarm` | `MIPT-networked/w7` | Quantized input/snapshots and bandwidth display with many ships | `ship-swarm-server`, `ship-swarm-client` |
 | `cipher-ships` | `MIPT-networked/w10` | Per-client key exchange, XOR payload cipher, fuzzed input packets | `cipher-ships-server`, `cipher-ships-client` |
 | `projectile-arena` | standalone | Server-authoritative arena game with reliable fire events and unreliable movement | `projectile-arena-server`, `projectile-arena-client` |
+| `persistent-arena` | standalone | Dedicated server with a persistent in-memory world and clients that enter a server address | `persistent-arena-server`, `persistent-arena-client` |
 
 ## Run Commands
 
@@ -32,6 +33,9 @@ Client/server demos should be run from two terminals. Start the server first:
 
 ./build/bin/projectile-arena-server
 ./build/bin/projectile-arena-client
+
+./build/bin/persistent-arena-server
+./build/bin/persistent-arena-client
 ```
 
 `lobby-dots` uses three processes. Start the lobby and game server first:
@@ -53,10 +57,30 @@ Client/server demos should be run from two terminals. Start the server first:
 | `ship-swarm` | `10131` |
 | `cipher-ships` | `10131` |
 | `projectile-arena` | `53477` |
+| `persistent-arena` | `53478` |
 
-All Raylib client/server demos use loopback by default.
+Most Raylib client/server demos use loopback by default. `persistent-arena` starts its client on a connection screen so another machine can enter the server host and port.
 
 ## Run Notes
 - Most examples use loopback and port `10131`; start the server first, then the client.
 - `lobby-dots` uses lobby port `10887` and game-server port `10888`.
 - In `lobby-dots`, start `lobby-dots-lobby` and `lobby-dots-game-server`, then open `lobby-dots-client`; press Enter in the client window to start the game session.
+- For a LAN `persistent-arena` run, start the server on the machine that owns the world:
+
+```sh
+cmake -S . -B build
+cmake --build build --target persistent-arena-server
+./build/bin/persistent-arena-server 53478
+```
+
+Find the server address on Linux with `ip addr`. If `ufw` is enabled, allow the UDP port with `sudo ufw allow 53478/udp`.
+
+On each client machine:
+
+```sh
+cmake -S . -B build
+cmake --build build --target persistent-arena-client
+./build/bin/persistent-arena-client
+```
+
+Enter the server address, for example `192.168.1.50`, and port `53478` in the client window.
