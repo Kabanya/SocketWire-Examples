@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <print>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -21,54 +22,59 @@ struct Player {
   std::string name;
 };
 
-static int generatePlayerID() {
-  static int nextID = 1;
-  return nextID++;
+static int GeneratePlayerId() {
+  static int next_id = 1;
+  return next_id++;
 }
 
-static void send_text(socketwire_examples::ServerConnectionHub::Client& client,
-                      const std::string& text, bool reliable = true) {
+static void SendText(socketwire_examples::ServerConnectionHub::Client& client,
+                     const std::string& text, bool reliable = true) {
   const std::size_t bytes = text.size() + 1;
   const bool sent =
     reliable ? client.connection->SendReliable(0, text.c_str(), bytes)
              : client.connection->SendUnsequenced(0, text.c_str(), bytes);
-  if (sent) socketwire_examples::benchmark::recordPayloadTx(bytes);
+  if (sent) socketwire_examples::benchmark::RecordPayloadTx(bytes);
 }
 
-static void sendPlayerList(
+static void SendPlayerList(
   const std::vector<Player>& players,
-  socketwire_examples::ServerConnectionHub::Client& targetClient) {
+  socketwire_examples::ServerConnectionHub::Client& target_client) {
   std::stringstream ss;
   ss << "PLAYERS ";
-  for (const auto& player : players)
+  for (const auto& player : players) {
     ss << player.id << " " << player.x << " " << player.y << " " << player.ping
        << ";";
+  }
 
-  send_text(targetClient, ss.str());
+  SendText(target_client, ss.str());
 }
 
-static void broadcastNewPlayer(const Player& newPlayer,
+static void BroadcastNewPlayer(const Player& new_player,
                                const std::vector<Player>& players) {
   const std::string msg =
-    "NEWPLAYER " + std::to_string(newPlayer.id) + " " + newPlayer.name;
-  for (const auto& player : players)
-    if (player.id != newPlayer.id && player.client != nullptr)
-      send_text(*player.client, msg);
-}
-
-static void broadcastPositions(const std::vector<Player>& players) {
-  for (const auto& sender : players) {
-    const std::string posStr = "POS " + std::to_string(sender.id) + " " +
-                               std::to_string(sender.x) + " " +
-                               std::to_string(sender.y);
-
-    for (const auto& receiver : players)
-      if (receiver.id != sender.id && receiver.client != nullptr)
-        send_text(*receiver.client, posStr, false);
+    "NEWPLAYER " + std::to_string(new_player.id) + " " + new_player.name;
+  for (const auto& player : players) {
+    if (player.id != new_player.id && player.client != nullptr) {
+      SendText(*player.client, msg);
+    }
   }
 }
 
-static void broadcastPings(const std::vector<Player>& players) {
+static void BroadcastPositions(const std::vector<Player>& players) {
+  for (const auto& sender : players) {
+    const std::string pos_str = "POS " + std::to_string(sender.id) + " " +
+                                std::to_string(sender.x) + " " +
+                                std::to_string(sender.y);
+
+    for (const auto& receiver : players) {
+      if (receiver.id != sender.id && receiver.client != nullptr) {
+        SendText(*receiver.client, pos_str, false);
+      }
+    }
+  }
+}
+
+static void BroadcastPings(const std::vector<Player>& players) {
   for (const auto& player : players) {
     if (player.client == nullptr) continue;
 
@@ -76,24 +82,24 @@ static void broadcastPings(const std::vector<Player>& players) {
     ss << "PINGS ";
     for (const auto& p : players) ss << p.id << " " << p.ping << ";";
 
-    send_text(*player.client, ss.str());
+    SendText(*player.client, ss.str());
   }
 }
 
 int main(int argc, const char** argv) {
-  auto benchOptions =
-    socketwire_examples::benchmark::parseOptions(argc, argv, 0, 10887, 10888);
+  auto bench_options =
+    socketwire_examples::benchmark::ParseOptions(argc, argv, 0, 10887, 10888);
   socketwire_examples::benchmark::MetricsCollector metrics(
-    benchOptions, "lobby-dots", "socketwire", "game-server");
-  socketwire_examples::benchmark::setActiveCollector(&metrics);
+    bench_options, "lobby-dots", "socketwire", "game-server");
+  socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
-  const std::uint16_t listenPort =
-    benchOptions.enabled
-      ? benchOptions.gamePort
-      : socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t listen_port =
+    bench_options.enabled
+      ? bench_options.gamePort
+      : socketwire_examples::PortFromArgsOrEnv(
           argc, argv, 1, "SOCKETWIRE_LOBBY_DOTS_GAME_PORT", 10888);
 
-  auto socket = socketwire_examples::createUdpSocket(listenPort);
+  auto socket = socketwire_examples::CreateUdpSocket(listen_port);
   if (socket == nullptr) return 1;
 
   socketwire::ReliableConnectionConfig cfg;
@@ -102,57 +108,58 @@ int main(int argc, const char** argv) {
 
   std::vector<Player> players;
 
-  hub.setConnectedCallback([&](auto& client) {
-    std::printf("Player connected from %u:%u\n",
-                client.address.ipv4.hostOrderAddress, client.port);
+  hub.SetConnectedCallback([&](auto& client) {
+    std::println("Player connected from {:d}:{:d}",
+                 client.address.ipv4.hostOrderAddress, client.port);
 
-    Player newPlayer;
-    newPlayer.id = generatePlayerID();
-    newPlayer.name = "Player_" + std::to_string(newPlayer.id);
-    newPlayer.x = static_cast<float>(GetRandomValue(100, 500));
-    newPlayer.y = static_cast<float>(GetRandomValue(100, 300));
-    newPlayer.ping = static_cast<int>(client.connection->GetRtt());
-    newPlayer.client = &client;
+    Player new_player;
+    new_player.id = GeneratePlayerId();
+    new_player.name = "Player_" + std::to_string(new_player.id);
+    new_player.x = static_cast<float>(GetRandomValue(100, 500));
+    new_player.y = static_cast<float>(GetRandomValue(100, 300));
+    new_player.ping = static_cast<int>(client.connection->GetRtt());
+    new_player.client = &client;
 
-    const std::string welcomeMsg =
-      "WELCOME " + std::to_string(newPlayer.id) + " " + newPlayer.name;
-    send_text(client, welcomeMsg);
-    sendPlayerList(players, client);
+    const std::string welcome_msg =
+      "WELCOME " + std::to_string(new_player.id) + " " + new_player.name;
+    SendText(client, welcome_msg);
+    SendPlayerList(players, client);
 
-    players.push_back(newPlayer);
-    broadcastNewPlayer(newPlayer, players);
+    players.push_back(new_player);
+    BroadcastNewPlayer(new_player, players);
   });
 
-  hub.setDisconnectedCallback([&](auto& client) {
-    std::printf("Player disconnected from %u:%u\n",
-                client.address.ipv4.hostOrderAddress, client.port);
+  hub.SetDisconnectedCallback([&](auto& client) {
+    std::println("Player disconnected from {:d}:{:d}",
+                 client.address.ipv4.hostOrderAddress, client.port);
 
     const auto it = std::find_if(
       players.begin(), players.end(),
       [&](const Player& player) { return player.client == &client; });
     if (it == players.end()) return;
 
-    const int disconnectedID = it->id;
+    const int disconnected_id = it->id;
     players.erase(it);
 
-    const std::string disconnectMsg =
-      "PLAYERLEFT " + std::to_string(disconnectedID);
-    for (const auto& player : players)
-      if (player.client != nullptr) send_text(*player.client, disconnectMsg);
+    const std::string disconnect_msg =
+      "PLAYERLEFT " + std::to_string(disconnected_id);
+    for (const auto& player : players) {
+      if (player.client != nullptr) SendText(*player.client, disconnect_msg);
+    }
   });
 
-  hub.setPacketCallback([&](auto& client, std::uint8_t, const void* data,
+  hub.SetPacketCallback([&](auto& client, std::uint8_t, const void* data,
                             std::size_t size, bool) {
-    socketwire_examples::benchmark::recordPayloadRx(size);
+    socketwire_examples::benchmark::RecordPayloadRx(size);
     const auto it = std::find_if(
       players.begin(), players.end(),
       [&](const Player& player) { return player.client == &client; });
     if (it == players.end()) return;
 
     it->ping = static_cast<int>(client.connection->GetRtt());
-    const std::string msg = socketwire_examples::readStringPayload(data, size);
+    const std::string msg = socketwire_examples::ReadStringPayload(data, size);
 
-    if (msg.substr(0, 3) == "POS") {
+    if (msg.starts_with("POS")) {
       std::istringstream ss(msg.substr(4));
       float x = 0.f;
       float y = 0.f;
@@ -163,57 +170,57 @@ int main(int argc, const char** argv) {
     }
   });
 
-  auto lastBroadcastTime = std::chrono::steady_clock::now();
-  auto lastPingTime = std::chrono::steady_clock::now();
+  auto last_broadcast_time = std::chrono::steady_clock::now();
+  auto last_ping_time = std::chrono::steady_clock::now();
 
-  std::printf("Game server started on port %u\n",
-              static_cast<unsigned>(listenPort));
+  std::println("Game server started on port {}",
+               static_cast<unsigned>(listen_port));
   while (true) {
-    if (benchOptions.enabled && metrics.done()) break;
-    const auto frameStart = std::chrono::steady_clock::now();
-    const auto updateStart = frameStart;
-    hub.poll();
-    hub.update();
+    if (bench_options.enabled && metrics.Done()) break;
+    const auto frame_start = std::chrono::steady_clock::now();
+    const auto update_start = frame_start;
+    hub.Poll();
+    hub.Update();
 
-    const auto currentTime = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime -
-                                                              lastBroadcastTime)
+    const auto current_time = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(
+          current_time - last_broadcast_time)
           .count() > 50) {
-      lastBroadcastTime = currentTime;
-      if (!players.empty()) broadcastPositions(players);
+      last_broadcast_time = current_time;
+      if (!players.empty()) BroadcastPositions(players);
     }
 
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime -
-                                                              lastPingTime)
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(current_time -
+                                                              last_ping_time)
           .count() > 500) {
-      lastPingTime = currentTime;
-      if (!players.empty()) broadcastPings(players);
+      last_ping_time = current_time;
+      if (!players.empty()) BroadcastPings(players);
     }
-    const auto updateEnd = std::chrono::steady_clock::now();
+    const auto update_end = std::chrono::steady_clock::now();
 
-    if (benchOptions.enabled) {
-      const auto clients = hub.clients();
-      metrics.setConnectedClients(static_cast<int>(clients.size()));
-      metrics.setNetworkStats(
-        socketwire_examples::benchmark::statsFromClients(clients));
-      metrics.recordUpdateMs(
+    if (bench_options.enabled) {
+      const auto clients = hub.Clients();
+      metrics.SetConnectedClients(static_cast<int>(clients.size()));
+      metrics.SetNetworkStats(
+        socketwire_examples::benchmark::StatsFromClients(clients));
+      metrics.RecordUpdateMs(
         static_cast<double>(
-          std::chrono::duration_cast<std::chrono::microseconds>(updateEnd -
-                                                                updateStart)
+          std::chrono::duration_cast<std::chrono::microseconds>(update_end -
+                                                                update_start)
             .count()) /
         1000.0);
-      metrics.recordFrameMs(
+      metrics.RecordFrameMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - frameStart)
+            std::chrono::steady_clock::now() - frame_start)
             .count()) /
         1000.0);
-      metrics.maybeWriteSample();
+      metrics.MaybeWriteSample();
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  metrics.finish();
-  socketwire_examples::benchmark::setActiveCollector(nullptr);
+  metrics.Finish();
+  socketwire_examples::benchmark::SetActiveCollector(nullptr);
 }

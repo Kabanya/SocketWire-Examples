@@ -1,8 +1,8 @@
 #pragma once
 #include <cstdint>
 
-constexpr uint16_t INVALID_ENTITY = -1;
-constexpr float WORLD_SIZE = 120.f;
+constexpr uint16_t kInvalidEntity = -1;
+constexpr float kWorldSize = 120.f;
 struct Entity {
   // immutable state
   uint32_t color = 0xff00ffff;
@@ -21,7 +21,7 @@ struct Entity {
   float steer = 0.f;
 
   // misc
-  uint16_t eid = INVALID_ENTITY;
+  uint16_t eid = kInvalidEntity;
 };
 
-void simulate_entity(Entity& e, float dt);
+void SimulateEntity(Entity& e, float dt);

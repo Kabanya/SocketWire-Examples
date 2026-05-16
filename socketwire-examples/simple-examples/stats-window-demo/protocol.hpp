@@ -6,24 +6,25 @@
 
 namespace stats_window_demo {
 
-constexpr std::uint16_t K_PORT = 53476;
-constexpr std::uint32_t K_PACKET_COUNT = 24;
+constexpr std::uint16_t kKPort = 53476;
+constexpr std::uint32_t kKPacketCount = 24;
 
 enum class MessageType : std::uint8_t {
-  Sample = 1,
-  SampleAck = 2,
+  kSample = 1,
+  kSampleAck = 2,
 };
 
-inline socketwire::BitStream make_sample(std::uint32_t id) {
+inline socketwire::BitStream MakeSample(std::uint32_t id) {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Sample));
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::kSample));
   stream.Write<std::uint32_t>(id);
   return stream;
 }
 
-inline socketwire::BitStream make_sample_ack(std::uint32_t id) {
+inline socketwire::BitStream MakeSampleAck(std::uint32_t id) {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::SampleAck));
+  stream.Write<std::uint8_t>(
+    static_cast<std::uint8_t>(MessageType::kSampleAck));
   stream.Write<std::uint32_t>(id);
   return stream;
 }

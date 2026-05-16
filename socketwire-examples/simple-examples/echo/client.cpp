@@ -13,19 +13,19 @@ using namespace socketwire;  // NOLINT
 class PrintHandler : public ISocketEventHandler {
  public:
   void OnDataReceived([[maybe_unused]] const SocketAddress& from,
-                      [[maybe_unused]] std::uint16_t fromPort, const void* data,
-                      std::size_t bytesRead) override {
+                      [[maybe_unused]] std::uint16_t from_port,
+                      const void* data, std::size_t bytes_read) override {
     std::cout << "Received: "
-              << std::string(static_cast<const char*>(data), bytesRead)
-              << std::endl;
+              << std::string(static_cast<const char*>(data), bytes_read)
+              << '\n';
   }
-  void OnSocketError(SocketError errorCode) override {
-    std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
+  void OnSocketError(SocketError error_code) override {
+    std::cerr << "Socket error: " << static_cast<int>(error_code) << '\n';
   }
 };
 
 int main(int argc, const char** argv) {
-  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t port = socketwire_examples::PortFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_ECHO_PORT", 40404);
 
   // Initialize socket factory
@@ -45,18 +45,18 @@ int main(int argc, const char** argv) {
 
   PrintHandler handler;
 
-  SocketAddress bindAddr = SocketConstants::Any();
-  client->Bind(bindAddr, 0);
+  SocketAddress const bind_addr = SocketConstants::Any();
+  client->Bind(bind_addr, 0);
 
-  SocketAddress dest = SocketConstants::Loopback();
+  SocketAddress const dest = SocketConstants::Loopback();
 
-  std::string msg = "Hello from use case of Client from Socket class!";
+  std::string const msg = "Hello from use case of Client from Socket class!";
   client->SendTo(msg.c_str(), msg.size(), dest, port);
 
   for (int i = 0; i < 10; ++i) {
     client->Poll(&handler);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
-  std::cout << "echo client is finished" << std::endl;
+  std::cout << "echo client is finished" << '\n';
   return 0;
 }

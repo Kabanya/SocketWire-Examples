@@ -14,9 +14,11 @@ CPMAddPackage(
   GIT_TAG main
 )
 
-# Popular cross-platform library for graphics and game development
-CPMAddPackage(
-  NAME raylib
-  GITHUB_REPOSITORY raysan5/raylib
-  GIT_TAG 5.5
-)
+if(NOT EMSCRIPTEN)
+  # Popular cross-platform library for graphics and game development
+  CPMAddPackage(
+    NAME raylib
+    GITHUB_REPOSITORY raysan5/raylib
+    GIT_TAG 5.5
+  )
+endif()

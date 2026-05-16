@@ -10,55 +10,54 @@ class ReliableConnection;
 }
 
 enum MessageType : std::uint8_t {
-  E_CLIENT_TO_SERVER_JOIN = 0,
-  E_SERVER_TO_CLIENT_NEW_ENTITY,
-  E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY,
-  E_CLIENT_TO_SERVER_STATE,
-  E_SERVER_TO_CLIENT_SNAPSHOT,
-  E_SERVER_TO_CLIENT_ENTITY_DEVOURED,
-  E_SERVER_TO_CLIENT_SCORE_UPDATE,
-  E_SERVER_TO_CLIENT_GAME_TIME,
-  E_SERVER_TO_CLIENT_GAME_OVER
+  kEClientToServerJoin = 0,
+  kEServerToClientNewEntity,
+  kEServerToClientSetControlledEntity,
+  kEClientToServerState,
+  kEServerToClientSnapshot,
+  kEServerToClientEntityDevoured,
+  kEServerToClientScoreUpdate,
+  kEServerToClientGameTime,
+  kEServerToClientGameOver
 };
 
-void send_join(socketwire::ReliableConnection* connection);
-void send_new_entity(socketwire::ReliableConnection* connection,
-                     const Entity& ent);
-void send_set_controlled_entity(socketwire::ReliableConnection* connection,
-                                std::uint16_t eid);
-void send_entity_state(socketwire::ReliableConnection* connection,
-                       std::uint16_t eid, float x, float y);
-void send_snapshot(socketwire::ReliableConnection* connection,
-                   std::uint16_t eid, float x, float y, float size);
+void SendJoin(socketwire::ReliableConnection* connection);
+void SendNewEntity(socketwire::ReliableConnection* connection,
+                   const Entity& ent);
+void SendSetControlledEntity(socketwire::ReliableConnection* connection,
+                             std::uint16_t eid);
+void SendEntityState(socketwire::ReliableConnection* connection,
+                     std::uint16_t eid, float x, float y);
+void SendSnapshot(socketwire::ReliableConnection* connection, std::uint16_t eid,
+                  float x, float y, float size);
 
-void send_entity_devoured(socketwire::ReliableConnection* connection,
-                          std::uint16_t devouredEid, std::uint16_t devourerEid,
-                          float newSize, float newX, float newY);
-void send_score_update(socketwire::ReliableConnection* connection,
-                       std::uint16_t eid, int score);
-void send_game_over(socketwire::ReliableConnection* connection,
-                    std::uint16_t winnerEid, int winnerScore);
-void send_game_time(socketwire::ReliableConnection* connection,
-                    int secondsRemaining);
+void SendEntityDevoured(socketwire::ReliableConnection* connection,
+                        std::uint16_t devoured_eid, std::uint16_t devourer_eid,
+                        float new_size, float new_x, float new_y);
+void SendScoreUpdate(socketwire::ReliableConnection* connection,
+                     std::uint16_t eid, int score);
+void SendGameOver(socketwire::ReliableConnection* connection,
+                  std::uint16_t winner_eid, int winner_score);
+void SendGameTime(socketwire::ReliableConnection* connection,
+                  int seconds_remaining);
 
-MessageType get_packet_type(const void* data, std::size_t size);
+MessageType GetPacketType(const void* data, std::size_t size);
 
-void deserialize_new_entity(const void* data, std::size_t size, Entity& ent);
-void deserialize_set_controlled_entity(const void* data, std::size_t size,
-                                       std::uint16_t& eid);
-void deserialize_entity_state(const void* data, std::size_t size,
-                              std::uint16_t& eid, float& x, float& y);
-void deserialize_snapshot(const void* data, std::size_t size,
-                          std::uint16_t& eid, float& x, float& y,
-                          float& sizeOut);
+void DeserializeNewEntity(const void* data, std::size_t size, Entity& ent);
+void DeserializeSetControlledEntity(const void* data, std::size_t size,
+                                    std::uint16_t& eid);
+void DeserializeEntityState(const void* data, std::size_t size,
+                            std::uint16_t& eid, float& x, float& y);
+void DeserializeSnapshot(const void* data, std::size_t size, std::uint16_t& eid,
+                         float& x, float& y, float& size_out);
 
-void deserialize_score_update(const void* data, std::size_t size,
-                              std::uint16_t& eid, int& score);
-void deserialize_entity_devoured(const void* data, std::size_t size,
-                                 std::uint16_t& devouredEid,
-                                 std::uint16_t& devourerEid, float& newSize,
-                                 float& newX, float& newY);
-void deserialize_game_over(const void* data, std::size_t size,
-                           std::uint16_t& winnerEid, int& winnerScore);
-void deserialize_game_time(const void* data, std::size_t size,
-                           int& secondsRemaining);
+void DeserializeScoreUpdate(const void* data, std::size_t size,
+                            std::uint16_t& eid, int& score);
+void DeserializeEntityDevoured(const void* data, std::size_t size,
+                               std::uint16_t& devoured_eid,
+                               std::uint16_t& devourer_eid, float& new_size,
+                               float& new_x, float& new_y);
+void DeserializeGameOver(const void* data, std::size_t size,
+                         std::uint16_t& winner_eid, int& winner_score);
+void DeserializeGameTime(const void* data, std::size_t size,
+                         int& seconds_remaining);

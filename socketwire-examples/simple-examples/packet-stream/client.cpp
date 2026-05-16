@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <print>
 #include <string>
 #include <thread>
 
@@ -15,15 +16,15 @@ class ClientHandler final : public IReliableConnectionHandler {
  public:
   void OnConnected() override {
     connected = true;
-    printf("Connection established\n");
+    std::println("Connection established");
   }
 
   void OnDisconnected() override { connected = false; }
 
   void OnReliableReceived([[maybe_unused]] std::uint8_t channel,
                           const void* data, std::size_t size) override {
-    printf("Packet received '%.*s'\n", static_cast<int>(size),
-           static_cast<const char*>(data));
+    std::println("Packet received '{:.{}}'", static_cast<const char*>(data),
+                 static_cast<int>(size));
   }
 
   void OnUnreliableReceived(std::uint8_t channel, const void* data,
@@ -35,20 +36,20 @@ class ClientHandler final : public IReliableConnectionHandler {
 };
 
 int main(int argc, const char** argv) {
-  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t port = socketwire_examples::PortFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
 
   InitializeSockets();
   auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
-    printf("Cannot init SocketWire\n");
+    std::println("Cannot init SocketWire");
     return 1;
   }
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
       socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone) {
-    printf("Cannot create client socket\n");
+    std::println("Cannot create client socket");
     return 1;
   }
 
@@ -59,17 +60,17 @@ int main(int argc, const char** argv) {
   connection.SetHandler(&handler);
   connection.Connect(SocketConstants::Loopback(), port);
 
-  auto lastSend = std::chrono::steady_clock::now();
+  auto last_send = std::chrono::steady_clock::now();
   int counter = 0;
 
   while (true) {
     connection.Tick();
     if (handler.connected) {
       auto now = std::chrono::steady_clock::now();
-      if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSend)
+      if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_send)
             .count() > 100) {
-        lastSend = now;
-        std::string packet = "packet#" + std::to_string(counter++);
+        last_send = now;
+        std::string const packet = "packet#" + std::to_string(counter++);
         connection.SendReliable(1, packet.c_str(), packet.size() + 1);
       }
     }

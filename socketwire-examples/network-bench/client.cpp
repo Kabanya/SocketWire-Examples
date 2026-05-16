@@ -19,22 +19,23 @@ class Handler final : public socketwire::IReliableConnectionHandler {
 
   void OnReliableReceived(std::uint8_t, const void* data,
                           std::size_t size) override {
-    receive(data, size);
+    Receive(data, size);
   }
 
   void OnUnreliableReceived(std::uint8_t, const void* data,
                             std::size_t size) override {
-    receive(data, size);
+    Receive(data, size);
   }
 
   bool connected = false;
 
  private:
-  void receive(const void* data, std::size_t size) {
+  void Receive(const void* data, std::size_t size) {
     netbench::PacketHeader header;
     if (!netbench::parseHeader(data, size, header) ||
-        !netbench::measured(header))
+        !netbench::measured(header)) {
       return;
+    }
     stats_.noteRx(size);
     stats_.noteEcho(header, netbench::nowUs());
   }
@@ -42,46 +43,48 @@ class Handler final : public socketwire::IReliableConnectionHandler {
   netbench::AppStats& stats_;
 };
 
-bool sendPayload(socketwire::ReliableConnection& connection,
+bool SendPayload(socketwire::ReliableConnection& connection,
                  netbench::ScheduledStream& stream, netbench::PacketKind kind,
-                 bool measured, std::uint32_t clientId,
-                 std::uint32_t& nextSequence, std::uint32_t seed,
+                 bool measured, std::uint32_t client_id,
+                 std::uint32_t& next_sequence, std::uint32_t seed,
                  netbench::AppStats& stats) {
   std::array<std::uint8_t, netbench::kMaxPayloadSize> payload{};
-  const std::uint32_t sequence = nextSequence++;
+  const std::uint32_t sequence = next_sequence++;
   const auto flags = static_cast<std::uint8_t>(
     stream.flags | (measured ? netbench::FlagMeasured : 0));
   const auto size = netbench::makePayload(payload.data(), stream.bytes, kind,
-                                          flags, stream.channel, clientId,
+                                          flags, stream.channel, client_id,
                                           sequence, netbench::nowUs(), seed);
 
   bool sent = false;
-  if ((stream.flags & netbench::FlagReliable) != 0)
+  if ((stream.flags & netbench::FlagReliable) != 0) {
     sent = connection.SendReliable(stream.channel, payload.data(), size);
-  else if ((stream.flags & netbench::FlagUnsequenced) != 0)
+  } else if ((stream.flags & netbench::FlagUnsequenced) != 0) {
     sent = connection.SendUnsequenced(stream.channel, payload.data(), size);
-  else
+  } else {
     sent = connection.SendUnreliable(stream.channel, payload.data(), size);
+  }
 
   if (sent && measured) stats.noteTx(size, true);
   return sent;
 }
 
-void sendDue(socketwire::ReliableConnection& connection,
+void SendDue(socketwire::ReliableConnection& connection,
              netbench::ScheduledStream& stream, netbench::PacketKind kind,
-             bool measured, std::uint32_t clientId, std::uint32_t& nextSequence,
-             std::uint32_t seed, netbench::AppStats& stats) {
+             bool measured, std::uint32_t client_id,
+             std::uint32_t& next_sequence, std::uint32_t seed,
+             netbench::AppStats& stats) {
   const auto now = netbench::nowUs();
   int burst = 0;
   while (stream.due(now) && burst < 16) {
-    sendPayload(connection, stream, kind, measured, clientId, nextSequence,
+    SendPayload(connection, stream, kind, measured, client_id, next_sequence,
                 seed, stats);
     stream.advance();
     burst += 1;
   }
 }
 
-netbench::TransportStats transportStats(
+netbench::TransportStats TransportStats(
   const socketwire::ReliableConnection& connection) {
   netbench::TransportStats stats;
   stats.rttMs = connection.GetRtt();
@@ -97,7 +100,7 @@ int main(int argc, const char** argv) {
   auto options = netbench::parseOptions(argc, argv, 53490);
   options.enabled = true;
 
-  auto socket = socketwire_examples::createUdpSocket(0);
+  auto socket = socketwire_examples::CreateUdpSocket(0);
   if (socket == nullptr) return 1;
 
   socketwire::ReliableConnectionConfig cfg;
@@ -107,22 +110,22 @@ int main(int argc, const char** argv) {
 
   netbench::AppStats stats;
   const auto profile = netbench::profileByName(options.profile);
-  const auto expectedPackets = static_cast<std::size_t>(
+  const auto expected_packets = static_cast<std::size_t>(
     (profile.reliablePps + profile.unreliablePps + profile.pingPps + 128U) *
     std::max(options.durationMs, 1) / 1000);
-  stats.reserve(expectedPackets);
+  stats.reserve(expected_packets);
 
   netbench::MetricsWriter metrics(options, "socketwire", "client");
   Handler handler(stats);
   socketwire::ReliableConnection connection(socket.get(), cfg);
   connection.SetHandler(&handler);
-  const auto serverAddress = socketwire_examples::resolveAddress(options.host);
-  connection.Connect(serverAddress, options.port);
-  auto nextConnectAttempt =
+  const auto server_address = socketwire_examples::ResolveAddress(options.host);
+  connection.Connect(server_address, options.port);
+  auto next_connect_attempt =
     std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
 
-  const std::uint32_t clientId = options.seed;
-  std::uint32_t nextSequence = 0;
+  const std::uint32_t client_id = options.seed;
+  std::uint32_t next_sequence = 0;
   auto reliable = netbench::ScheduledStream{
     profile.reliablePps, profile.reliableBytes, netbench::FlagReliable, 0, 0,
     netbench::nowUs(),
@@ -141,52 +144,53 @@ int main(int argc, const char** argv) {
     netbench::nowUs(),
   };
 
-  bool resetAtMeasurement = false;
+  bool reset_at_measurement = false;
   while (!metrics.done()) {
-    const auto loopStart = std::chrono::steady_clock::now();
-    if (!handler.connected && loopStart >= nextConnectAttempt) {
-      connection.Connect(serverAddress, options.port);
-      nextConnectAttempt = loopStart + std::chrono::milliseconds(250);
+    const auto loop_start = std::chrono::steady_clock::now();
+    if (!handler.connected && loop_start >= next_connect_attempt) {
+      connection.Connect(server_address, options.port);
+      next_connect_attempt = loop_start + std::chrono::milliseconds(250);
     }
     connection.Tick();
 
     const bool measuring = metrics.measuring();
-    if (measuring && !resetAtMeasurement) {
+    if (measuring && !reset_at_measurement) {
       const auto now = netbench::nowUs();
       reliable.reset(now);
       unreliable.reset(now);
       ping.reset(now);
-      resetAtMeasurement = true;
+      reset_at_measurement = true;
     }
 
     if (handler.connected && measuring) {
       if (profile.flood) {
-        for (int i = 0; i < 32; ++i)
-          sendPayload(connection, unreliable, netbench::PacketKind::Data,
-                      measuring, clientId, nextSequence, options.seed, stats);
+        for (int i = 0; i < 32; ++i) {
+          SendPayload(connection, unreliable, netbench::PacketKind::Data,
+                      measuring, client_id, next_sequence, options.seed, stats);
+        }
       } else {
-        sendDue(connection, reliable, netbench::PacketKind::Data, measuring,
-                clientId, nextSequence, options.seed, stats);
-        sendDue(connection, unreliable, netbench::PacketKind::Data, measuring,
-                clientId, nextSequence, options.seed, stats);
-        sendDue(connection, ping, netbench::PacketKind::Ping, measuring,
-                clientId, nextSequence, options.seed, stats);
+        SendDue(connection, reliable, netbench::PacketKind::Data, measuring,
+                client_id, next_sequence, options.seed, stats);
+        SendDue(connection, unreliable, netbench::PacketKind::Data, measuring,
+                client_id, next_sequence, options.seed, stats);
+        SendDue(connection, ping, netbench::PacketKind::Ping, measuring,
+                client_id, next_sequence, options.seed, stats);
       }
     }
 
     metrics.setConnectedClients(handler.connected ? 1 : 0);
-    metrics.maybeWriteSample(stats, transportStats(connection));
+    metrics.maybeWriteSample(stats, TransportStats(connection));
 
-    const auto loopEnd = std::chrono::steady_clock::now();
+    const auto loop_end = std::chrono::steady_clock::now();
     stats.noteUpdateMs(
       static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
-                            loopEnd - loopStart)
+                            loop_end - loop_start)
                             .count()) /
       1000.0);
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
   connection.Disconnect();
-  metrics.finish(&stats, transportStats(connection));
+  metrics.finish(&stats, TransportStats(connection));
   return 0;
 }

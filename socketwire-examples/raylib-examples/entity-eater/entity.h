@@ -1,12 +1,12 @@
 #pragma once
 #include <cstdint>
 
-constexpr uint16_t INVALID_ENTITY = -1;
+constexpr uint16_t kInvalidEntity = -1;
 struct Entity {
   uint32_t color = 0xff00ffff;
   float x = 0.f;
   float y = 0.f;
-  uint16_t eid = INVALID_ENTITY;
+  uint16_t eid = kInvalidEntity;
   bool serverControlled = false;
   float targetX = 0.f;
   float targetY = 0.f;

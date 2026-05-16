@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdio>
 #include <memory>
+#include <print>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -29,40 +30,42 @@ struct ClientState {
   std::uint16_t pendingGamePort = 0;
 };
 
-static void send_text(socketwire::ReliableConnection& connection,
-                      const std::string& text, bool reliable = true) {
+static void SendText(socketwire::ReliableConnection& connection,
+                     const std::string& text, bool reliable = true) {
   const std::size_t bytes = text.size() + 1;
   const bool sent = reliable
                       ? connection.SendReliable(0, text.c_str(), bytes)
                       : connection.SendUnsequenced(0, text.c_str(), bytes);
-  if (sent) socketwire_examples::benchmark::recordPayloadTx(bytes);
+  if (sent) socketwire_examples::benchmark::RecordPayloadTx(bytes);
 }
 
-static void send_fragmented_packet(socketwire::ReliableConnection& connection) {
-  const char* baseMsg = "Stay awhile and listen. ";
-  const std::size_t msgLen = std::char_traits<char>::length(baseMsg);
+static void SendFragmentedPacket(socketwire::ReliableConnection& connection) {
+  const char* base_msg = "Stay awhile and listen. ";
+  const std::size_t msg_len = std::char_traits<char>::length(base_msg);
 
-  constexpr std::size_t SEND_SIZE = 2500;
-  std::string hugeMessage(SEND_SIZE, '\0');
-  for (std::size_t i = 0; i < SEND_SIZE - 1; ++i)
-    hugeMessage[i] = baseMsg[i % msgLen];
+  constexpr std::size_t send_size = 2500;
+  std::string huge_message(send_size, '\0');
+  for (std::size_t i = 0; i < send_size - 1; ++i) {
+    huge_message[i] = base_msg[i % msg_len];
+  }
 
-  if (connection.SendReliable(0, hugeMessage.c_str(), hugeMessage.size()))
-    socketwire_examples::benchmark::recordPayloadTx(hugeMessage.size());
+  if (connection.SendReliable(0, huge_message.c_str(), huge_message.size())) {
+    socketwire_examples::benchmark::RecordPayloadTx(huge_message.size());
+  }
 }
 
-static void send_micro_packet(socketwire::ReliableConnection& connection) {
-  send_text(connection, "dv/dt", false);
+static void SendMicroPacket(socketwire::ReliableConnection& connection) {
+  SendText(connection, "dv/dt", false);
 }
 
-static void send_position(socketwire::ReliableConnection& connection, float x,
-                          float y) {
-  char posMsg[64]{};
-  std::snprintf(posMsg, sizeof(posMsg), "POS %.2f %.2f", x, y);
-  send_text(connection, posMsg, false);
+static void SendPosition(socketwire::ReliableConnection& connection, float x,
+                         float y) {
+  char pos_msg[64]{};
+  std::snprintf(pos_msg, sizeof(pos_msg), "POS %.2f %.2f", x, y);
+  SendText(connection, pos_msg, false);
 }
 
-enum class ConnectionTarget { Lobby, Game };
+enum class ConnectionTarget { kLobby, kGame };
 
 class ClientHandler final : public socketwire::IReliableConnectionHandler {
  public:
@@ -70,7 +73,7 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
       : state_(state), target_(target) {}
 
   void OnConnected() override {
-    if (target_ == ConnectionTarget::Lobby) {
+    if (target_ == ConnectionTarget::kLobby) {
       state_.connectedToLobby = true;
       state_.gameServerStatus = "Connected to lobby";
     } else {
@@ -80,7 +83,7 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
   }
 
   void OnDisconnected() override {
-    if (target_ == ConnectionTarget::Lobby) {
+    if (target_ == ConnectionTarget::kLobby) {
       state_.connectedToLobby = false;
       state_.gameServerStatus = "Disconnected from lobby";
     } else {
@@ -91,33 +94,33 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
 
   void OnReliableReceived(std::uint8_t channel, const void* data,
                           std::size_t size) override {
-    socketwire_examples::benchmark::recordPayloadRx(size);
-    handlePacket(channel, data, size);
+    socketwire_examples::benchmark::RecordPayloadRx(size);
+    HandlePacket(channel, data, size);
   }
 
   void OnUnreliableReceived(std::uint8_t channel, const void* data,
                             std::size_t size) override {
-    socketwire_examples::benchmark::recordPayloadRx(size);
-    handlePacket(channel, data, size);
+    socketwire_examples::benchmark::RecordPayloadRx(size);
+    HandlePacket(channel, data, size);
   }
 
  private:
   ClientState& state_;
   ConnectionTarget target_;
 
-  void handlePacket([[maybe_unused]] std::uint8_t channel, const void* data,
+  void HandlePacket([[maybe_unused]] std::uint8_t channel, const void* data,
                     std::size_t size) {
-    const std::string text = socketwire_examples::readStringPayload(data, size);
-    std::printf("Packet received '%s'\n", text.c_str());
+    const std::string text = socketwire_examples::ReadStringPayload(data, size);
+    std::println("Packet received '{}'", text);
 
-    if (target_ == ConnectionTarget::Lobby) {
+    if (target_ == ConnectionTarget::kLobby) {
       if (!state_.connectedToGameServer && text.starts_with("GAMESERVER")) {
-        char serverIP[256]{};
-        int serverPort = 0;
-        if (std::sscanf(text.c_str(), "GAMESERVER %255s %d", serverIP,
-                        &serverPort) == 2) {
-          state_.pendingGameHost = serverIP;
-          state_.pendingGamePort = static_cast<std::uint16_t>(serverPort);
+        char server_ip[256]{};
+        int server_port = 0;
+        if (std::sscanf(text.c_str(), "GAMESERVER %255s %d", server_ip,
+                        &server_port) == 2) {
+          state_.pendingGameHost = server_ip;
+          state_.pendingGamePort = static_cast<std::uint16_t>(server_port);
           state_.gameServerStatus = "Connecting to game server...";
         }
       }
@@ -139,17 +142,18 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
       std::string token;
 
       while (std::getline(ss, token, ';')) {
-        std::istringstream playerStream(token);
-        if (playerStream >> player.id >> player.x >> player.y >> player.ping)
+        std::istringstream player_stream(token);
+        if (player_stream >> player.id >> player.x >> player.y >> player.ping) {
           state_.players.push_back(player);
+        }
       }
     } else if (text.starts_with("POS")) {
-      int playerId = -1;
+      int player_id = -1;
       float x = 0.f;
       float y = 0.f;
-      if (std::sscanf(text.c_str(), "POS %d %f %f", &playerId, &x, &y) == 3) {
+      if (std::sscanf(text.c_str(), "POS %d %f %f", &player_id, &x, &y) == 3) {
         for (auto& player : state_.players) {
-          if (player.id == playerId) {
+          if (player.id == player_id) {
             player.x = x;
             player.y = y;
             break;
@@ -157,44 +161,46 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
         }
       }
     } else if (text.starts_with("NEWPLAYER")) {
-      int playerId = -1;
-      char playerName[256]{};
-      if (std::sscanf(text.c_str(), "NEWPLAYER %d %255s", &playerId,
-                      playerName) >= 1) {
+      int player_id = -1;
+      char player_name[256]{};
+      if (std::sscanf(text.c_str(), "NEWPLAYER %d %255s", &player_id,
+                      player_name) >= 1) {
         const auto exists = std::ranges::any_of(
           state_.players,
-          [playerId](const Player& player) { return player.id == playerId; });
+          [player_id](const Player& player) { return player.id == player_id; });
 
-        if (!exists) state_.players.push_back(Player{playerId, 0.f, 0.f, 0});
+        if (!exists) state_.players.push_back(Player{player_id, 0.f, 0.f, 0});
       }
     } else if (text.starts_with("PLAYERLEFT")) {
-      int playerId = -1;
-      if (std::sscanf(text.c_str(), "PLAYERLEFT %d", &playerId) == 1)
-        std::erase_if(state_.players, [playerId](const Player& player) {
-          return player.id == playerId;
+      int player_id = -1;
+      if (std::sscanf(text.c_str(), "PLAYERLEFT %d", &player_id) == 1) {
+        std::erase_if(state_.players, [player_id](const Player& player) {
+          return player.id == player_id;
         });
+      }
     } else if (text.starts_with("PINGS")) {
-      std::printf("Processing ping data: %s\n", text.c_str());
+      std::println("Processing ping data: {}", text);
       std::istringstream ss(text.substr(6));
       std::string token;
       while (std::getline(ss, token, ';')) {
         if (token.empty()) continue;
 
-        int playerId = -1;
-        int pingValue = 0;
-        std::istringstream pingStream(token);
-        if (pingStream >> playerId >> pingValue) {
+        int player_id = -1;
+        int ping_value = 0;
+        std::istringstream ping_stream(token);
+        if (ping_stream >> player_id >> ping_value) {
           bool updated = false;
           for (auto& player : state_.players) {
-            if (player.id == playerId) {
-              player.ping = pingValue;
+            if (player.id == player_id) {
+              player.ping = ping_value;
               updated = true;
               break;
             }
           }
 
-          if (!updated && playerId != state_.myPlayerId)
-            state_.players.push_back(Player{playerId, 0.f, 0.f, pingValue});
+          if (!updated && player_id != state_.myPlayerId) {
+            state_.players.push_back(Player{player_id, 0.f, 0.f, ping_value});
+          }
         }
       }
     }
@@ -202,80 +208,81 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
 };
 
 int main(int argc, const char** argv) {
-  auto benchOptions =
-    socketwire_examples::benchmark::parseOptions(argc, argv, 0, 10887, 10888);
+  auto bench_options =
+    socketwire_examples::benchmark::ParseOptions(argc, argv, 0, 10887, 10888);
   socketwire_examples::benchmark::MetricsCollector metrics(
-    benchOptions, "lobby-dots", "socketwire", "client");
-  socketwire_examples::benchmark::setActiveCollector(&metrics);
+    bench_options, "lobby-dots", "socketwire", "client");
+  socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
-  const std::uint16_t connectLobbyPort =
-    benchOptions.enabled
-      ? benchOptions.lobbyPort
-      : socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t connect_lobby_port =
+    bench_options.enabled
+      ? bench_options.lobbyPort
+      : socketwire_examples::PortFromArgsOrEnv(
           argc, argv, 1, "SOCKETWIRE_LOBBY_DOTS_LOBBY_PORT", 10887);
 
   int width = 800;
   int height = 600;
-  if (!benchOptions.enabled) InitWindow(width, height, "Lobby Dots");
+  if (!bench_options.enabled) InitWindow(width, height, "Lobby Dots");
 
-  if (!benchOptions.enabled) {
-    const int scrWidth = GetMonitorWidth(0);
-    const int scrHeight = GetMonitorHeight(0);
-    if (scrWidth < width || scrHeight < height) {
-      width = std::min(scrWidth, width);
-      height = std::min(scrHeight - 150, height);
+  if (!bench_options.enabled) {
+    const int scr_width = GetMonitorWidth(0);
+    const int scr_height = GetMonitorHeight(0);
+    if (scr_width < width || scr_height < height) {
+      width = std::min(scr_width, width);
+      height = std::min(scr_height - 150, height);
       SetWindowSize(width, height);
     }
   }
 
-  if (!benchOptions.enabled) SetTargetFPS(60);
+  if (!bench_options.enabled) SetTargetFPS(60);
 
-  auto lobbySocket = socketwire_examples::createUdpSocket(0);
-  if (lobbySocket == nullptr) return 1;
+  auto lobby_socket = socketwire_examples::CreateUdpSocket(0);
+  if (lobby_socket == nullptr) return 1;
 
   socketwire::ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
-  socketwire::ReliableConnection lobbyConnection(lobbySocket.get(), cfg);
+  socketwire::ReliableConnection lobby_connection(lobby_socket.get(), cfg);
 
   ClientState state;
-  ClientHandler lobbyHandler(state, ConnectionTarget::Lobby);
-  lobbyConnection.SetHandler(&lobbyHandler);
-  lobbyConnection.Connect(
-    socketwire_examples::resolveAddress(benchOptions.host), connectLobbyPort);
+  ClientHandler lobby_handler(state, ConnectionTarget::kLobby);
+  lobby_connection.SetHandler(&lobby_handler);
+  lobby_connection.Connect(
+    socketwire_examples::ResolveAddress(bench_options.host),
+    connect_lobby_port);
 
-  std::unique_ptr<socketwire::ISocket> gameSocket;
-  std::unique_ptr<socketwire::ReliableConnection> gameConnection;
-  std::unique_ptr<ClientHandler> gameHandler;
+  std::unique_ptr<socketwire::ISocket> game_socket;
+  std::unique_ptr<socketwire::ReliableConnection> game_connection;
+  std::unique_ptr<ClientHandler> game_handler;
 
-  auto lastFragmentedSendTime = std::chrono::steady_clock::now();
-  auto lastMicroSendTime = lastFragmentedSendTime;
-  auto lastPositionSendTime = lastFragmentedSendTime;
+  auto last_fragmented_send_time = std::chrono::steady_clock::now();
+  auto last_micro_send_time = last_fragmented_send_time;
+  auto last_position_send_time = last_fragmented_send_time;
 
-  float posx = static_cast<float>(GetRandomValue(100, 500));
-  float posy = static_cast<float>(GetRandomValue(100, 500));
+  auto posx = static_cast<float>(GetRandomValue(100, 500));
+  auto posy = static_cast<float>(GetRandomValue(100, 500));
   float velx = 0.f;
   float vely = 0.f;
-  bool startSent = false;
-  std::uint64_t benchFrame = 0;
+  bool start_sent = false;
+  std::uint64_t bench_frame = 0;
 
-  while (benchOptions.enabled ? !metrics.done() : !WindowShouldClose()) {
-    const auto frameStart = std::chrono::steady_clock::now();
-    const float dt = benchOptions.enabled ? (1.f / 60.f) : GetFrameTime();
+  while (bench_options.enabled ? !metrics.Done() : !WindowShouldClose()) {
+    const auto frame_start = std::chrono::steady_clock::now();
+    const float dt = bench_options.enabled ? (1.f / 60.f) : GetFrameTime();
 
-    const auto updateStart = std::chrono::steady_clock::now();
-    lobbyConnection.Tick();
-    if (gameConnection != nullptr) gameConnection->Tick();
+    const auto update_start = std::chrono::steady_clock::now();
+    lobby_connection.Tick();
+    if (game_connection != nullptr) game_connection->Tick();
 
-    if (!state.pendingGameHost.empty() && gameConnection == nullptr) {
-      gameSocket = socketwire_examples::createUdpSocket(0);
-      if (gameSocket != nullptr) {
-        gameConnection = std::make_unique<socketwire::ReliableConnection>(
-          gameSocket.get(), cfg);
-        gameHandler =
-          std::make_unique<ClientHandler>(state, ConnectionTarget::Game);
-        gameConnection->SetHandler(gameHandler.get());
-        gameConnection->Connect(
-          socketwire_examples::resolveAddress(state.pendingGameHost),
+    if (!state.pendingGameHost.empty() && game_connection == nullptr) {
+      game_socket = socketwire_examples::CreateUdpSocket(0);
+      if (game_socket != nullptr) {
+        game_connection = std::make_unique<socketwire::ReliableConnection>(
+          game_socket.get(), cfg);
+        game_handler =
+          std::make_unique<ClientHandler>(state, ConnectionTarget::kGame);
+        game_connection->SetHandler(game_handler.get());
+        game_connection->Connect(
+          socketwire_examples::ResolveAddress(state.pendingGameHost),
           state.pendingGamePort);
       } else {
         state.gameServerStatus = "Cannot connect to game server";
@@ -285,60 +292,60 @@ int main(int argc, const char** argv) {
 
     const auto now = std::chrono::steady_clock::now();
 
-    if (state.connectedToGameServer && gameConnection != nullptr &&
+    if (state.connectedToGameServer && game_connection != nullptr &&
         std::chrono::duration_cast<std::chrono::milliseconds>(
-          now - lastPositionSendTime)
+          now - last_position_send_time)
             .count() > 50) {
-      lastPositionSendTime = now;
-      send_position(*gameConnection, posx, posy);
+      last_position_send_time = now;
+      SendPosition(*game_connection, posx, posy);
     }
 
     if (state.connectedToLobby) {
       if (std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - lastFragmentedSendTime)
+            now - last_fragmented_send_time)
             .count() > 1000) {
-        lastFragmentedSendTime = now;
+        last_fragmented_send_time = now;
         // send_fragmented_packet(lobbyConnection);
-        (void)send_fragmented_packet;
+        (void)SendFragmentedPacket;
       }
       if (std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - lastMicroSendTime)
+            now - last_micro_send_time)
             .count() > 100) {
-        lastMicroSendTime = now;
+        last_micro_send_time = now;
         // send_micro_packet(lobbyConnection);
-        (void)send_micro_packet;
+        (void)SendMicroPacket;
       }
     }
 
-    if (!benchOptions.enabled && IsKeyPressed(KEY_ESCAPE)) break;
+    if (!bench_options.enabled && IsKeyPressed(KEY_ESCAPE)) break;
 
-    if (((benchOptions.enabled && !startSent) ||
-         (!benchOptions.enabled && IsKeyPressed(KEY_ENTER))) &&
+    if (((bench_options.enabled && !start_sent) ||
+         (!bench_options.enabled && IsKeyPressed(KEY_ENTER))) &&
         state.connectedToLobby) {
-      send_text(lobbyConnection, "Start!");
-      startSent = true;
+      SendText(lobby_connection, "Start!");
+      start_sent = true;
     }
 
-    const float axisX = benchOptions.enabled
-                          ? socketwire_examples::benchmark::deterministicAxis(
-                              benchOptions.seed, benchFrame, 0)
-                          : ((IsKeyDown(KEY_RIGHT) ? 1.f : 0.f) +
-                             (IsKeyDown(KEY_LEFT) ? -1.f : 0.f));
-    const float axisY = benchOptions.enabled
-                          ? socketwire_examples::benchmark::deterministicAxis(
-                              benchOptions.seed, benchFrame, 1)
-                          : ((IsKeyDown(KEY_DOWN) ? 1.f : 0.f) +
-                             (IsKeyDown(KEY_UP) ? -1.f : 0.f));
-    constexpr float ACCEL = 30.f;
-    velx += axisX * dt * ACCEL;
-    vely += axisY * dt * ACCEL;
+    const float axis_x = bench_options.enabled
+                           ? socketwire_examples::benchmark::DeterministicAxis(
+                               bench_options.seed, bench_frame, 0)
+                           : ((IsKeyDown(KEY_RIGHT) ? 1.f : 0.f) +
+                              (IsKeyDown(KEY_LEFT) ? -1.f : 0.f));
+    const float axis_y = bench_options.enabled
+                           ? socketwire_examples::benchmark::DeterministicAxis(
+                               bench_options.seed, bench_frame, 1)
+                           : ((IsKeyDown(KEY_DOWN) ? 1.f : 0.f) +
+                              (IsKeyDown(KEY_UP) ? -1.f : 0.f));
+    constexpr float accel = 30.f;
+    velx += axis_x * dt * accel;
+    vely += axis_y * dt * accel;
     posx += velx * dt;
     posy += vely * dt;
     velx *= 0.99f;
     vely *= 0.99f;
-    const auto updateEnd = std::chrono::steady_clock::now();
+    const auto update_end = std::chrono::steady_clock::now();
 
-    if (!benchOptions.enabled) {
+    if (!bench_options.enabled) {
       BeginDrawing();
       ClearBackground(BLACK);
 
@@ -352,13 +359,13 @@ int main(int argc, const char** argv) {
 
       DrawText("List of players:", 20, 60, 20, WHITE);
 
-      int yOffset = 80;
+      int y_offset = 80;
       for (const auto& player : state.players) {
         DrawText(TextFormat("Player %d: (%d, %d) - Ping: %d ms", player.id,
                             static_cast<int>(player.x),
                             static_cast<int>(player.y), player.ping),
-                 20, yOffset, 18, WHITE);
-        yOffset += 20;
+                 20, y_offset, 18, WHITE);
+        y_offset += 20;
 
         if (player.id != state.myPlayerId) {
           DrawCircleV(Vector2{player.x, player.y}, 10.f, RED);
@@ -369,45 +376,45 @@ int main(int argc, const char** argv) {
 
       EndDrawing();
     } else {
-      int connectedCount = state.connectedToLobby ? 1 : 0;
-      if (state.connectedToGameServer) connectedCount += 1;
+      int connected_count = state.connectedToLobby ? 1 : 0;
+      if (state.connectedToGameServer) connected_count += 1;
       socketwire_examples::benchmark::NetworkStats stats =
-        socketwire_examples::benchmark::statsFromConnection(lobbyConnection);
-      if (gameConnection != nullptr) {
-        const auto gameStats =
-          socketwire_examples::benchmark::statsFromConnection(*gameConnection);
+        socketwire_examples::benchmark::StatsFromConnection(lobby_connection);
+      if (game_connection != nullptr) {
+        const auto game_stats =
+          socketwire_examples::benchmark::StatsFromConnection(*game_connection);
         stats.rttMs = state.connectedToGameServer
-                        ? (stats.rttMs + gameStats.rttMs) * 0.5
+                        ? (stats.rttMs + game_stats.rttMs) * 0.5
                         : stats.rttMs;
-        stats.lostPackets += gameStats.lostPackets;
-        stats.inflightPackets += gameStats.inflightPackets;
-        stats.sendWindow += gameStats.sendWindow;
+        stats.lostPackets += game_stats.lostPackets;
+        stats.inflightPackets += game_stats.inflightPackets;
+        stats.sendWindow += game_stats.sendWindow;
       }
-      metrics.setConnectedClients(connectedCount);
-      metrics.setNetworkStats(stats);
-      metrics.recordUpdateMs(
+      metrics.SetConnectedClients(connected_count);
+      metrics.SetNetworkStats(stats);
+      metrics.RecordUpdateMs(
         static_cast<double>(
-          std::chrono::duration_cast<std::chrono::microseconds>(updateEnd -
-                                                                updateStart)
+          std::chrono::duration_cast<std::chrono::microseconds>(update_end -
+                                                                update_start)
             .count()) /
         1000.0);
-      metrics.recordFrameMs(
+      metrics.RecordFrameMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - frameStart)
+            std::chrono::steady_clock::now() - frame_start)
             .count()) /
         1000.0);
-      metrics.maybeWriteSample();
+      metrics.MaybeWriteSample();
       std::this_thread::sleep_for(std::chrono::milliseconds(16));
-      ++benchFrame;
+      ++bench_frame;
     }
   }
 
-  lobbyConnection.Disconnect();
-  if (gameConnection != nullptr) gameConnection->Disconnect();
+  lobby_connection.Disconnect();
+  if (game_connection != nullptr) game_connection->Disconnect();
 
-  metrics.finish();
-  socketwire_examples::benchmark::setActiveCollector(nullptr);
-  if (!benchOptions.enabled) CloseWindow();
+  metrics.Finish();
+  socketwire_examples::benchmark::SetActiveCollector(nullptr);
+  if (!bench_options.enabled) CloseWindow();
   return 0;
 }

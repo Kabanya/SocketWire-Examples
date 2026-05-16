@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <print>
 #include <thread>
 
 #include "i_socket.hpp"
@@ -15,7 +16,7 @@ class ClientHandler final : public IReliableConnectionHandler {
  public:
   void OnConnected() override {
     connected = true;
-    std::printf("connected\n");
+    std::println("connected");
   }
 
   void OnDisconnected() override { connected = false; }
@@ -23,26 +24,28 @@ class ClientHandler final : public IReliableConnectionHandler {
   void OnReliableReceived(std::uint8_t channel, const void* data,
                           std::size_t size) override {
     BitStream stream(static_cast<const std::uint8_t*>(data), size);
-    const auto typeValue = stream.TryRead<std::uint8_t>();
-    if (!typeValue) return;
+    const auto type_value = stream.TryRead<std::uint8_t>();
+    if (!type_value) return;
 
-    const auto type = static_cast<channels_demo::MessageType>(*typeValue);
-    if (type == channels_demo::MessageType::CommandAck) {
-      const auto commandId = stream.TryRead<std::uint32_t>();
-      if (commandId)
-        std::printf("channel %u reliable ack for command #%u\n", channel,
-                    *commandId);
+    const auto type = static_cast<channels_demo::MessageType>(*type_value);
+    if (type == channels_demo::MessageType::kCommandAck) {
+      const auto command_id = stream.TryRead<std::uint32_t>();
+      if (command_id) {
+        std::println("channel {} reliable ack for command #{}", channel,
+                     *command_id);
+      }
       return;
     }
 
-    if (type == channels_demo::MessageType::Snapshot) {
+    if (type == channels_demo::MessageType::kSnapshot) {
       const auto tick = stream.TryRead<std::uint32_t>();
       const auto x = stream.TryRead<float>();
       const auto y = stream.TryRead<float>();
       if (tick && x && y) {
         ++snapshots;
-        std::printf("channel %u unsequenced snapshot tick=%u x=%.2f y=%.2f\n",
-                    channel, *tick, *x, *y);
+        std::println(
+          "channel {} unsequenced snapshot tick={} x={:.2f} y={:.2f}", channel,
+          *tick, *x, *y);
       }
     }
   }
@@ -57,20 +60,20 @@ class ClientHandler final : public IReliableConnectionHandler {
 };
 
 int main(int argc, const char** argv) {
-  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
-    argc, argv, 1, "SOCKETWIRE_CHANNELS_DEMO_PORT", channels_demo::K_PORT);
+  const std::uint16_t port = socketwire_examples::PortFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_CHANNELS_DEMO_PORT", channels_demo::kKPort);
 
   InitializeSockets();
   auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
-    std::printf("Cannot init SocketWire\n");
+    std::println("Cannot init SocketWire");
     return 1;
   }
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
       socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone) {
-    std::printf("Cannot create client socket\n");
+    std::println("Cannot create client socket");
     return 1;
   }
 
@@ -82,25 +85,25 @@ int main(int argc, const char** argv) {
   connection.Connect(SocketConstants::Loopback(), port);
 
   const auto started = std::chrono::steady_clock::now();
-  auto lastMove = started;
-  bool commandSent = false;
+  auto last_move = started;
+  bool command_sent = false;
   std::uint32_t tick = 0;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5)) {
     connection.Tick();
 
-    if (handler.connected && !commandSent) {
-      auto command = channels_demo::make_command(1, "open-door");
+    if (handler.connected && !command_sent) {
+      auto command = channels_demo::MakeCommand(1, "open-door");
       connection.SendReliable(0, command);
-      commandSent = true;
+      command_sent = true;
     }
 
     const auto now = std::chrono::steady_clock::now();
-    if (handler.connected && now - lastMove > std::chrono::milliseconds(80)) {
-      lastMove = now;
+    if (handler.connected && now - last_move > std::chrono::milliseconds(80)) {
+      last_move = now;
       const float x = static_cast<float>(tick) * 0.25f;
       const float y = 10.0f + static_cast<float>(tick % 4);
-      auto movement = channels_demo::make_movement(tick++, x, y);
+      auto movement = channels_demo::MakeMovement(tick++, x, y);
       connection.SendUnreliable(1, movement);
     }
 
@@ -109,7 +112,7 @@ int main(int argc, const char** argv) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  std::printf("channels-demo client finished with %d snapshots\n",
-              handler.snapshots);
+  std::println("channels-demo client finished with {} snapshots",
+               handler.snapshots);
   return handler.snapshots > 0 ? 0 : 1;
 }

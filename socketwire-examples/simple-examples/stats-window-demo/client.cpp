@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <print>
 #include <thread>
 
 #include "i_socket.hpp"
@@ -15,7 +16,7 @@ class ClientHandler final : public IReliableConnectionHandler {
  public:
   void OnConnected() override {
     connected = true;
-    std::printf("connected\n");
+    std::println("connected");
   }
 
   void OnDisconnected() override { connected = false; }
@@ -23,17 +24,17 @@ class ClientHandler final : public IReliableConnectionHandler {
   void OnReliableReceived(std::uint8_t, const void* data,
                           std::size_t size) override {
     BitStream stream(static_cast<const std::uint8_t*>(data), size);
-    const auto typeValue = stream.TryRead<std::uint8_t>();
+    const auto type_value = stream.TryRead<std::uint8_t>();
     const auto id = stream.TryRead<std::uint32_t>();
-    if (!typeValue || !id ||
-        static_cast<stats_window_demo::MessageType>(*typeValue) !=
-          stats_window_demo::MessageType::SampleAck) {
+    if (!type_value || !id ||
+        static_cast<stats_window_demo::MessageType>(*type_value) !=
+          stats_window_demo::MessageType::kSampleAck) {
       return;
     }
 
     ++acks;
-    std::printf("user ack for sample #%u (%u/%u)\n", *id, acks,
-                stats_window_demo::K_PACKET_COUNT);
+    std::println("user ack for sample #{} ({}/{})", *id, acks,
+                 stats_window_demo::kKPacketCount);
   }
 
   void OnUnreliableReceived(std::uint8_t, const void*, std::size_t) override {}
@@ -43,21 +44,21 @@ class ClientHandler final : public IReliableConnectionHandler {
 };
 
 int main(int argc, const char** argv) {
-  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t port = socketwire_examples::PortFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_STATS_WINDOW_DEMO_PORT",
-    stats_window_demo::K_PORT);
+    stats_window_demo::kKPort);
 
   InitializeSockets();
   auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
-    std::printf("Cannot init SocketWire\n");
+    std::println("Cannot init SocketWire");
     return 1;
   }
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
       socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone) {
-    std::printf("Cannot create client socket\n");
+    std::println("Cannot create client socket");
     return 1;
   }
 
@@ -72,42 +73,42 @@ int main(int argc, const char** argv) {
   connection.Connect(SocketConstants::Loopback(), port);
 
   const auto started = std::chrono::steady_clock::now();
-  auto lastStats = started;
-  std::uint32_t nextSample = 0;
+  auto last_stats = started;
+  std::uint32_t next_sample = 0;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(6)) {
     connection.Tick();
 
     while (handler.connected &&
-           nextSample < stats_window_demo::K_PACKET_COUNT) {
-      auto sample = stats_window_demo::make_sample(nextSample);
+           next_sample < stats_window_demo::kKPacketCount) {
+      auto sample = stats_window_demo::MakeSample(next_sample);
       if (!connection.SendReliable(0, sample)) break;
-      ++nextSample;
+      ++next_sample;
     }
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - lastStats > std::chrono::milliseconds(250)) {
-      lastStats = now;
-      std::printf(
-        "stats: sent=%u received=%u lost=%u inflight=%u window=%u rtt=%.1fms "
-        "queued=%u\n",
+    if (now - last_stats > std::chrono::milliseconds(250)) {
+      last_stats = now;
+      std::println(
+        "stats: sent={} received={} lost={} inflight={} window={} rtt={:.1f}ms "
+        "queued={}",
         connection.GetSentPackets(), connection.GetReceivedPackets(),
         connection.GetLostPackets(), connection.GetInflightCount(),
-        connection.GetSendWindow(), connection.GetRtt(), nextSample);
+        connection.GetSendWindow(), connection.GetRtt(), next_sample);
     }
 
-    if (handler.acks >= stats_window_demo::K_PACKET_COUNT) break;
+    if (handler.acks >= stats_window_demo::kKPacketCount) break;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  std::printf(
-    "final stats: sent=%u received=%u lost=%u inflight=%u window=%u "
-    "rtt=%.1fms\n",
+  std::println(
+    "final stats: sent={} received={} lost={} inflight={} window={} "
+    "rtt={:.1f}ms",
     connection.GetSentPackets(), connection.GetReceivedPackets(),
     connection.GetLostPackets(), connection.GetInflightCount(),
     connection.GetSendWindow(), connection.GetRtt());
-  std::printf("stats-window-demo finished with %u user-level acks\n",
-              handler.acks);
-  return handler.acks == stats_window_demo::K_PACKET_COUNT ? 0 : 1;
+  std::println("stats-window-demo finished with {} user-level acks",
+               handler.acks);
+  return handler.acks == stats_window_demo::kKPacketCount ? 0 : 1;
 }

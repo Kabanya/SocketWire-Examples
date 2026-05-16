@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <print>
 #include <thread>
 
 #include "i_socket.hpp"
@@ -11,41 +12,41 @@
 using namespace socketwire;  // NOLINT
 
 int main(int argc, const char** argv) {
-  const std::uint16_t port = socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t port = socketwire_examples::PortFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_PACKET_STREAM_PORT", 53473);
 
   InitializeSockets();
   auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
-    printf("Cannot init SocketWire\n");
+    std::println("Cannot init SocketWire");
     return 1;
   }
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
       socket->Bind(SocketConstants::Any(), port) != SocketError::kNone) {
-    printf("Cannot create server socket\n");
+    std::println("Cannot create server socket");
     return 1;
   }
 
   socketwire::ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
-  hub.setConnectedCallback([](auto& client) {
+  hub.SetConnectedCallback([](auto& client) {
     printf("Connection with %u:%u established\n",
            client.address.ipv4.hostOrderAddress, client.port);
   });
-  hub.setPacketCallback(
+  hub.SetPacketCallback(
     [](auto&, std::uint8_t, const void* data, std::size_t size, bool) {
-      printf("Packet received '%.*s'\n", static_cast<int>(size),
-             static_cast<const char*>(data));
+      std::println("Packet received '{:.{}}'", static_cast<const char*>(data),
+                   static_cast<int>(size));
     });
 
-  printf("packet-stream server listening on port %u\n",
-         static_cast<unsigned>(port));
+  std::println("packet-stream server listening on port {}",
+               static_cast<unsigned>(port));
   while (true) {
-    hub.poll();
-    hub.update();
+    hub.Poll();
+    hub.Update();
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }

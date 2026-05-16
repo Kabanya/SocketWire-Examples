@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdio>
+#include <print>
 #include <span>
 #include <string>
 #include <vector>
@@ -9,43 +10,43 @@
 using socketwire::BitStream;
 using socketwire::BitStreamError;
 
-static void print_error(const char* field, BitStreamError error) {
-  std::printf("%s failed with %s\n", field, socketwire::ToString(error));
+static void PrintError(const char* field, BitStreamError error) {
+  std::println("{} failed with {}", field, socketwire::ToString(error));
 }
 
-static bool decode_player_packet(std::span<const std::uint8_t> bytes) {
+static bool DecodePlayerPacket(std::span<const std::uint8_t> bytes) {
   BitStream stream(bytes.data(), bytes.size());
 
   const auto tick = stream.TryRead<std::uint32_t>();
   if (!tick) {
-    print_error("tick", tick.error());
+    PrintError("tick", tick.error());
     return false;
   }
 
   const auto name = stream.TryReadString();
   if (!name) {
-    print_error("name", name.error());
+    PrintError("name", name.error());
     return false;
   }
 
   const auto flags = stream.TryReadBoolArray();
   if (!flags) {
-    print_error("flags", flags.error());
+    PrintError("flags", flags.error());
     return false;
   }
 
   const auto buttons = stream.TryReadBits(4);
   if (!buttons) {
-    print_error("buttons", buttons.error());
+    PrintError("buttons", buttons.error());
     return false;
   }
 
-  std::printf("decoded: tick=%u name=%s flags=%zu buttons=0x%x\n", *tick,
-              name->c_str(), flags->size(), *buttons);
+  std::println("decoded: tick={} name={} flags={} buttons=0x{:x}", *tick, *name,
+               flags->size(), *buttons);
   return true;
 }
 
-static std::vector<std::uint8_t> make_valid_packet() {
+static std::vector<std::uint8_t> MakeValidPacket() {
   BitStream stream;
   stream.Write<std::uint32_t>(42);
   stream.Write(std::string("demo-player"));
@@ -56,14 +57,14 @@ static std::vector<std::uint8_t> make_valid_packet() {
   return {first, first + stream.GetSizeBytes()};
 }
 
-static std::vector<std::uint8_t> make_bad_string_length_packet() {
+static std::vector<std::uint8_t> MakeBadStringLengthPacket() {
   BitStream stream;
   stream.Write<std::uint32_t>(70000);
   const auto* first = stream.GetData();
   return {first, first + stream.GetSizeBytes()};
 }
 
-static std::vector<std::uint8_t> make_bad_bool_array_packet() {
+static std::vector<std::uint8_t> MakeBadBoolArrayPacket() {
   BitStream stream;
   stream.Write<std::uint32_t>(8);
   stream.Write(std::string("bad-flags"));
@@ -75,23 +76,23 @@ static std::vector<std::uint8_t> make_bad_bool_array_packet() {
 }
 
 int main() {
-  const auto valid = make_valid_packet();
-  std::printf("valid packet:\n");
-  decode_player_packet(valid);
+  const auto valid = MakeValidPacket();
+  std::println("valid packet:");
+  DecodePlayerPacket(valid);
 
   auto truncated = valid;
   truncated.resize(truncated.size() - 3);
-  std::printf("\ntruncated packet:\n");
-  decode_player_packet(truncated);
+  std::println("\ntruncated packet:");
+  DecodePlayerPacket(truncated);
 
-  std::printf("\ninvalid string length:\n");
-  const auto badString = make_bad_string_length_packet();
-  BitStream badStringStream(badString.data(), badString.size());
-  const auto name = badStringStream.TryReadString();
-  if (!name) print_error("string", name.error());
+  std::println("\ninvalid string length:");
+  const auto bad_string = MakeBadStringLengthPacket();
+  BitStream bad_string_stream(bad_string.data(), bad_string.size());
+  const auto name = bad_string_stream.TryReadString();
+  if (!name) PrintError("string", name.error());
 
-  std::printf("\ninvalid bool array payload:\n");
-  decode_player_packet(make_bad_bool_array_packet());
+  std::println("\ninvalid bool array payload:");
+  DecodePlayerPacket(MakeBadBoolArrayPacket());
 
   return 0;
 }

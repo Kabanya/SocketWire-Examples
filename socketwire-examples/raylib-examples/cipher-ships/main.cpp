@@ -14,26 +14,27 @@
 #include "windows_defines.hpp"  // IWYU pragma: keep
 
 static std::vector<Entity> entities;
-static std::uint16_t myEntity = INVALID_ENTITY;
+static std::uint16_t my_entity = kInvalidEntity;
 
-static void on_new_entity_packet(const void* data, std::size_t size) {
-  Entity newEntity;
-  deserialize_new_entity(data, size, newEntity);
-  for (const Entity& e : entities)
-    if (e.eid == newEntity.eid) return;
-  entities.push_back(newEntity);
+static void OnNewEntityPacket(const void* data, std::size_t size) {
+  Entity new_entity;
+  DeserializeNewEntity(data, size, new_entity);
+  for (const Entity& e : entities) {
+    if (e.eid == new_entity.eid) return;
+  }
+  entities.push_back(new_entity);
 }
 
-static void on_set_controlled_entity(const void* data, std::size_t size) {
-  deserialize_set_controlled_entity(data, size, myEntity);
+static void OnSetControlledEntity(const void* data, std::size_t size) {
+  DeserializeSetControlledEntity(data, size, my_entity);
 }
 
-static void on_snapshot(const void* data, std::size_t size) {
-  std::uint16_t eid = INVALID_ENTITY;
+static void OnSnapshot(const void* data, std::size_t size) {
+  std::uint16_t eid = kInvalidEntity;
   float x = 0.f;
   float y = 0.f;
   float ori = 0.f;
-  deserialize_snapshot(data, size, eid, x, y, ori);
+  DeserializeSnapshot(data, size, eid, x, y, ori);
 
   for (Entity& e : entities) {
     if (e.eid == eid) {
@@ -45,8 +46,8 @@ static void on_snapshot(const void* data, std::size_t size) {
   }
 }
 
-static void on_key(const void* data, std::size_t size) {
-  deserialize_and_set_key(data, size);
+static void OnKey(const void* data, std::size_t size) {
+  DeserializeAndSetKey(data, size);
 }
 
 class ClientHandler final : public socketwire::IReliableConnectionHandler {
@@ -56,55 +57,55 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
 
   void OnReliableReceived(std::uint8_t channel, const void* data,
                           std::size_t size) override {
-    socketwire_examples::benchmark::recordPayloadRx(size);
-    processPacket(channel, data, size);
+    socketwire_examples::benchmark::RecordPayloadRx(size);
+    ProcessPacket(channel, data, size);
   }
 
   void OnUnreliableReceived(std::uint8_t channel, const void* data,
                             std::size_t size) override {
-    socketwire_examples::benchmark::recordPayloadRx(size);
-    processPacket(channel, data, size);
+    socketwire_examples::benchmark::RecordPayloadRx(size);
+    ProcessPacket(channel, data, size);
   }
 
   bool connected = false;
 
  private:
-  static void processPacket([[maybe_unused]] std::uint8_t channel,
+  static void ProcessPacket([[maybe_unused]] std::uint8_t channel,
                             const void* data, std::size_t size) {
-    switch (get_packet_type(data, size)) {
-      case E_SERVER_TO_CLIENT_NEW_ENTITY:
-        on_new_entity_packet(data, size);
+    switch (GetPacketType(data, size)) {
+      case kEServerToClientNewEntity:
+        OnNewEntityPacket(data, size);
         break;
-      case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
-        on_set_controlled_entity(data, size);
+      case kEServerToClientSetControlledEntity:
+        OnSetControlledEntity(data, size);
         break;
-      case E_SERVER_TO_CLIENT_SNAPSHOT:
-        on_snapshot(data, size);
+      case kEServerToClientSnapshot:
+        OnSnapshot(data, size);
         break;
-      case E_SERVER_TO_CLIENT_KEY:
-        on_key(data, size);
+      case kEServerToClientKey:
+        OnKey(data, size);
         break;
-      case E_CLIENT_TO_SERVER_JOIN:
-      case E_CLIENT_TO_SERVER_INPUT:
+      case kEClientToServerJoin:
+      case kEClientToServerInput:
         break;
     }
   }
 };
 
 int main(int argc, const char** argv) {
-  auto benchOptions =
-    socketwire_examples::benchmark::parseOptions(argc, argv, 10131);
+  auto bench_options =
+    socketwire_examples::benchmark::ParseOptions(argc, argv, 10131);
   socketwire_examples::benchmark::MetricsCollector metrics(
-    benchOptions, "cipher-ships", "socketwire", "client");
-  socketwire_examples::benchmark::setActiveCollector(&metrics);
+    bench_options, "cipher-ships", "socketwire", "client");
+  socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
-  const std::uint16_t connectPort =
-    benchOptions.enabled
-      ? benchOptions.port
-      : socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t connect_port =
+    bench_options.enabled
+      ? bench_options.port
+      : socketwire_examples::PortFromArgsOrEnv(
           argc, argv, 1, "SOCKETWIRE_CIPHER_SHIPS_PORT", 10131);
 
-  auto socket = socketwire_examples::createUdpSocket(0);
+  auto socket = socketwire_examples::CreateUdpSocket(0);
   if (socket == nullptr) return 1;
 
   socketwire::ReliableConnectionConfig cfg;
@@ -112,20 +113,20 @@ int main(int argc, const char** argv) {
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.SetHandler(&handler);
-  connection.Connect(socketwire_examples::resolveAddress(benchOptions.host),
-                     connectPort);
+  connection.Connect(socketwire_examples::ResolveAddress(bench_options.host),
+                     connect_port);
 
   int width = 600;
   int height = 600;
 
-  if (!benchOptions.enabled) InitWindow(width, height, "Cipher Ships");
+  if (!bench_options.enabled) InitWindow(width, height, "Cipher Ships");
 
-  if (!benchOptions.enabled) {
-    const int scrWidth = GetMonitorWidth(0);
-    const int scrHeight = GetMonitorHeight(0);
-    if (scrWidth < width || scrHeight < height) {
-      width = std::min(scrWidth, width);
-      height = std::min(scrHeight - 150, height);
+  if (!bench_options.enabled) {
+    const int scr_width = GetMonitorWidth(0);
+    const int scr_height = GetMonitorHeight(0);
+    if (scr_width < width || scr_height < height) {
+      width = std::min(scr_width, width);
+      height = std::min(scr_height - 150, height);
       SetWindowSize(width, height);
     }
   }
@@ -134,40 +135,41 @@ int main(int argc, const char** argv) {
   camera.offset = Vector2{width * 0.5f, height * 0.5f};
   camera.zoom = 10.f;
 
-  if (!benchOptions.enabled) SetTargetFPS(60);
+  if (!bench_options.enabled) SetTargetFPS(60);
 
-  bool sentJoin = false;
-  std::uint64_t benchFrame = 0;
-  while (benchOptions.enabled ? !metrics.done() : !WindowShouldClose()) {
-    const auto frameStart = std::chrono::steady_clock::now();
-    const auto updateStart = std::chrono::steady_clock::now();
+  bool sent_join = false;
+  std::uint64_t bench_frame = 0;
+  while (bench_options.enabled ? !metrics.Done() : !WindowShouldClose()) {
+    const auto frame_start = std::chrono::steady_clock::now();
+    const auto update_start = std::chrono::steady_clock::now();
     connection.Tick();
 
-    if (handler.connected && !sentJoin) {
-      send_join(&connection);
-      sentJoin = true;
+    if (handler.connected && !sent_join) {
+      SendJoin(&connection);
+      sent_join = true;
     }
 
-    if (myEntity != INVALID_ENTITY) {
-      const float thr = benchOptions.enabled
-                          ? socketwire_examples::benchmark::deterministicAxis(
-                              benchOptions.seed, benchFrame, 0)
+    if (my_entity != kInvalidEntity) {
+      const float thr = bench_options.enabled
+                          ? socketwire_examples::benchmark::DeterministicAxis(
+                              bench_options.seed, bench_frame, 0)
                           : ((IsKeyDown(KEY_UP) ? 1.f : 0.f) +
                              (IsKeyDown(KEY_DOWN) ? -1.f : 0.f));
-      const float steer = benchOptions.enabled
-                            ? socketwire_examples::benchmark::deterministicAxis(
-                                benchOptions.seed, benchFrame, 1)
+      const float steer = bench_options.enabled
+                            ? socketwire_examples::benchmark::DeterministicAxis(
+                                bench_options.seed, bench_frame, 1)
                             : ((IsKeyDown(KEY_LEFT) ? -1.f : 0.f) +
                                (IsKeyDown(KEY_RIGHT) ? 1.f : 0.f));
 
-      for (Entity& e : entities) {
-        if (e.eid == myEntity)
-          send_entity_input(&connection, myEntity, thr, steer);
+      for (Entity const& e : entities) {
+        if (e.eid == my_entity) {
+          SendEntityInput(&connection, my_entity, thr, steer);
+        }
       }
     }
-    const auto updateEnd = std::chrono::steady_clock::now();
+    const auto update_end = std::chrono::steady_clock::now();
 
-    if (!benchOptions.enabled) {
+    if (!bench_options.enabled) {
       BeginDrawing();
       ClearBackground(GRAY);
       BeginMode2D(camera);
@@ -180,30 +182,30 @@ int main(int argc, const char** argv) {
       EndMode2D();
       EndDrawing();
     } else {
-      metrics.setConnectedClients(handler.connected ? 1 : 0);
-      metrics.setNetworkStats(
-        socketwire_examples::benchmark::statsFromConnection(connection));
-      metrics.recordUpdateMs(
+      metrics.SetConnectedClients(handler.connected ? 1 : 0);
+      metrics.SetNetworkStats(
+        socketwire_examples::benchmark::StatsFromConnection(connection));
+      metrics.RecordUpdateMs(
         static_cast<double>(
-          std::chrono::duration_cast<std::chrono::microseconds>(updateEnd -
-                                                                updateStart)
+          std::chrono::duration_cast<std::chrono::microseconds>(update_end -
+                                                                update_start)
             .count()) /
         1000.0);
-      metrics.recordFrameMs(
+      metrics.RecordFrameMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - frameStart)
+            std::chrono::steady_clock::now() - frame_start)
             .count()) /
         1000.0);
-      metrics.maybeWriteSample();
+      metrics.MaybeWriteSample();
       std::this_thread::sleep_for(std::chrono::milliseconds(16));
-      ++benchFrame;
+      ++bench_frame;
     }
   }
 
   connection.Disconnect();
-  metrics.finish();
-  socketwire_examples::benchmark::setActiveCollector(nullptr);
-  if (!benchOptions.enabled) CloseWindow();
+  metrics.Finish();
+  socketwire_examples::benchmark::SetActiveCollector(nullptr);
+  if (!bench_options.enabled) CloseWindow();
   return 0;
 }

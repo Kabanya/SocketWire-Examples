@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <print>
 #include <thread>
 
 #include "bit_stream.hpp"
@@ -13,31 +14,31 @@
 
 using namespace socketwire;  // NOLINT
 
-std::unique_ptr<ISocket> clientSocket;
-SocketAddress serverAddr;
+std::unique_ptr<ISocket> client_socket;
+SocketAddress server_addr;
 
 class ClientHandler : public ISocketEventHandler {
  public:
   void OnDataReceived([[maybe_unused]] const SocketAddress& from,
-                      [[maybe_unused]] std::uint16_t fromPort, const void* data,
-                      std::size_t bytesRead) override {
-    if (bytesRead == 0) return;
+                      [[maybe_unused]] std::uint16_t from_port,
+                      const void* data, std::size_t bytes_read) override {
+    if (bytes_read == 0) return;
 
-    BitStream stream(reinterpret_cast<const uint8_t*>(data), bytesRead);
+    BitStream stream(reinterpret_cast<const uint8_t*>(data), bytes_read);
     std::string message;
     stream.Read(message);
     std::cout << "\r" << message << "\n>";
     std::cout.flush();
   }
-  void OnSocketError(SocketError errorCode) override {
-    std::cerr << "Socket error: " << static_cast<int>(errorCode) << std::endl;
+  void OnSocketError(SocketError error_code) override {
+    std::cerr << "Socket error: " << static_cast<int>(error_code) << '\n';
   }
 };
 
-void client_receive_loop(ClientHandler& handler) {
+void ClientReceiveLoop(ClientHandler& handler) {
   while (true) {
-    if (clientSocket) {
-      clientSocket->Poll(&handler);
+    if (client_socket) {
+      client_socket->Poll(&handler);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -76,7 +77,7 @@ void client_receive_loop(ClientHandler& handler) {
 //   }
 // }
 
-void display_help() {
+void DisplayHelp() {
   std::cout << "\n-----------------Client-INFO-------------------\n"
             << "/c [msg] - Send a message to all connected clients\n"
             << "/mathduel - Challenge someone to a math duel\n"
@@ -85,11 +86,11 @@ void display_help() {
             << "SERVER: [msg] - Send a message to the server\n"
             << "CHAT (sender): [msg] - message from another user\n"
             << "-------------------------------------------------\n\n"
-            << std::endl;
+            << '\n';
 }
 
 int main(int argc, const char** argv) {
-  const std::uint16_t serverPort = socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t server_port = socketwire_examples::PortFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_MATH_DUEL_PORT", 2025);
 
   // Initialize socket factory
@@ -100,56 +101,55 @@ int main(int argc, const char** argv) {
   // Create socket factory and socket
   auto factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
-    printf("Socket factory not initialized\n");
+    std::println("Socket factory not initialized");
     return 1;
   }
 
-  clientSocket = factory->CreateUdpSocket(SocketConfig{});
-  if (!clientSocket) {
-    printf("Cannot create socket\n");
+  client_socket = factory->CreateUdpSocket(SocketConfig{});
+  if (!client_socket) {
+    std::println("Cannot create socket");
     return 1;
   }
 
-  SocketAddress localAddr = SocketConstants::Any();
-  if (clientSocket->Bind(localAddr, 0) != SocketError::kNone) {
-    printf("Cannot bind socket\n");
+  SocketAddress const local_addr = SocketConstants::Any();
+  if (client_socket->Bind(local_addr, 0) != SocketError::kNone) {
+    std::println("Cannot bind socket");
     return 1;
   }
 
-  serverAddr = SocketConstants::Loopback();
+  server_addr = SocketConstants::Loopback();
 
-  std::cout << "Client is using port: " << clientSocket->LocalPort()
-            << std::endl;
+  std::cout << "Client is using port: " << client_socket->LocalPort() << '\n';
 
-  BitStream connectStream;
-  connectStream.Write(std::string("New client!"));
-  auto result =
-    clientSocket->SendTo(connectStream.GetData(), connectStream.GetSizeBytes(),
-                         serverAddr, serverPort);
+  BitStream connect_stream;
+  connect_stream.Write(std::string("New client!"));
+  auto result = client_socket->SendTo(connect_stream.GetData(),
+                                      connect_stream.GetSizeBytes(),
+                                      server_addr, server_port);
   if (result.Failed()) {
-    printf("Failed to send connect message\n");
+    std::println("Failed to send connect message");
     return 1;
   }
 
-  std::thread receiveThread([&handler]() { client_receive_loop(handler); });
-  receiveThread.detach();
+  std::thread receive_thread([&handler]() { ClientReceiveLoop(handler); });
+  receive_thread.detach();
 
   while (true) {
     std::string input;
-    printf(">");
+    std::print(">");
     if (!std::getline(std::cin, input)) break;
 
     if (input == "/help" || input == "/h" || input == "/?" ||
         input == "--help") {
-      display_help();
+      DisplayHelp();
       continue;
     }
 
     if (!input.empty()) {
       BitStream stream;
       stream.Write(input);
-      clientSocket->SendTo(stream.GetData(), stream.GetSizeBytes(), serverAddr,
-                           serverPort);
+      client_socket->SendTo(stream.GetData(), stream.GetSizeBytes(),
+                            server_addr, server_port);
     }
   }
   return 0;

@@ -8,92 +8,92 @@
 
 using namespace socketwire;  // NOLINT
 
-void printSectionHeader(const char* title) {
-  std::cout << "\n" << std::string(60, '=') << std::endl;
-  std::cout << "  " << title << std::endl;
-  std::cout << std::string(60, '=') << std::endl;
+void PrintSectionHeader(const char* title) {
+  std::cout << "\n" << std::string(60, '=') << '\n';
+  std::cout << "  " << title << '\n';
+  std::cout << std::string(60, '=') << '\n';
 }
 
-void demoConstants() {
-  printSectionHeader("IPv4 Address Constants");
+void DemoConstants() {
+  PrintSectionHeader("IPv4 Address Constants");
 
   std::cout << "IPV4_ANY:       0x" << std::hex << std::setw(8)
             << std::setfill('0') << SocketConstants::kIpV4Any << std::dec
-            << std::endl;
+            << '\n';
   std::cout << "IPV4_LOOPBACK:  0x" << std::hex << std::setw(8)
             << std::setfill('0') << SocketConstants::kIpV4Loopback << std::dec
-            << std::endl;
+            << '\n';
   std::cout << "IPV4_BROADCAST: 0x" << std::hex << std::setw(8)
             << std::setfill('0') << SocketConstants::kIpV4Broadcast << std::dec
-            << std::endl;
-  std::cout << "PORT_ANY:       " << SocketConstants::kPortAny << std::endl;
+            << '\n';
+  std::cout << "PORT_ANY:       " << SocketConstants::kPortAny << '\n';
 }
 
-void demoFactoryMethods() {
-  printSectionHeader("Factory Methods");
+void DemoFactoryMethods() {
+  PrintSectionHeader("Factory Methods");
 
-  SocketAddress anyAddr = SocketConstants::Any();
-  SocketAddress loopbackAddr = SocketConstants::Loopback();
-  SocketAddress broadcastAddr = SocketConstants::Broadcast();
+  SocketAddress const any_addr = SocketConstants::Any();
+  SocketAddress const loopback_addr = SocketConstants::Loopback();
+  SocketAddress const broadcast_addr = SocketConstants::Broadcast();
 
   std::cout << "SocketConstants::Any()       -> 0x" << std::hex << std::setw(8)
-            << std::setfill('0') << anyAddr.ipv4.hostOrderAddress << std::dec
-            << std::endl;
+            << std::setfill('0') << any_addr.ipv4.hostOrderAddress << std::dec
+            << '\n';
   std::cout << "SocketConstants::Loopback()  -> 0x" << std::hex << std::setw(8)
-            << std::setfill('0') << loopbackAddr.ipv4.hostOrderAddress
-            << std::dec << std::endl;
+            << std::setfill('0') << loopback_addr.ipv4.hostOrderAddress
+            << std::dec << '\n';
   std::cout << "SocketConstants::Broadcast() -> 0x" << std::hex << std::setw(8)
-            << std::setfill('0') << broadcastAddr.ipv4.hostOrderAddress
-            << std::dec << std::endl;
+            << std::setfill('0') << broadcast_addr.ipv4.hostOrderAddress
+            << std::dec << '\n';
 }
 
-void demoFromOctets() {
-  printSectionHeader("Creating Addresses from Octets");
+void DemoFromOctets() {
+  PrintSectionHeader("Creating Addresses from Octets");
 
-  SocketAddress addr1 = SocketConstants::FromOctets(192, 168, 1, 1);
-  SocketAddress addr2 = SocketConstants::FromOctets(10, 0, 0, 1);
-  SocketAddress addr3 = SocketConstants::FromOctets(172, 16, 254, 100);
+  SocketAddress const addr1 = SocketConstants::FromOctets(192, 168, 1, 1);
+  SocketAddress const addr2 = SocketConstants::FromOctets(10, 0, 0, 1);
+  SocketAddress const addr3 = SocketConstants::FromOctets(172, 16, 254, 100);
 
   char buffer[16];
 
   SocketConstants::FormatIPv4(addr1.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
-  std::cout << "fromOctets(192, 168, 1, 1)   -> " << buffer << std::endl;
+  std::cout << "fromOctets(192, 168, 1, 1)   -> " << buffer << '\n';
 
   SocketConstants::FormatIPv4(addr2.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
-  std::cout << "fromOctets(10, 0, 0, 1)      -> " << buffer << std::endl;
+  std::cout << "fromOctets(10, 0, 0, 1)      -> " << buffer << '\n';
 
   SocketConstants::FormatIPv4(addr3.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
-  std::cout << "fromOctets(172, 16, 254, 100) -> " << buffer << std::endl;
+  std::cout << "fromOctets(172, 16, 254, 100) -> " << buffer << '\n';
 }
 
-void demoParseIPv4() {
-  printSectionHeader("Parsing IPv4 Addresses from Strings");
+void DemoParseIPv4() {
+  PrintSectionHeader("Parsing IPv4 Addresses from Strings");
 
-  const char* testAddresses[] = {"192.168.1.100", "127.0.0.1",
-                                 "8.8.8.8",       "255.255.255.255",
-                                 "invalid",       "999.999.999.999"};
+  const char* test_addresses[] = {"192.168.1.100", "127.0.0.1",
+                                  "8.8.8.8",       "255.255.255.255",
+                                  "invalid",       "999.999.999.999"};
 
-  for (const char* addrStr : testAddresses) {
-    std::uint32_t addr;
-    bool success = SocketConstants::ParseIPv4(addrStr, addr);
+  for (const char* addr_str : test_addresses) {
+    std::uint32_t addr = 0;
+    bool const success = SocketConstants::ParseIPv4(addr_str, addr);
 
-    std::cout << std::left << std::setw(20) << addrStr << " -> ";
+    std::cout << std::left << std::setw(20) << addr_str << " -> ";
     if (success) {
       std::cout << "SUCCESS (0x" << std::hex << std::setw(8)
-                << std::setfill('0') << addr << std::dec << ")" << std::endl;
+                << std::setfill('0') << addr << std::dec << ")" << '\n';
     } else {
-      std::cout << "FAILED" << std::endl;
+      std::cout << "FAILED" << '\n';
     }
   }
 }
 
-void demoFormatIPv4() {
-  printSectionHeader("Converting Addresses to Strings");
+void DemoFormatIPv4() {
+  PrintSectionHeader("Converting Addresses to Strings");
 
-  std::uint32_t addresses[] = {
+  std::uint32_t const addresses[] = {
     0x7F000001,  // 127.0.0.1
     0xC0A80101,  // 192.168.1.1
     0x08080808,  // 8.8.8.8
@@ -108,151 +108,152 @@ void demoFormatIPv4() {
               << std::dec << " -> ";
 
     if (SocketConstants::FormatIPv4(addr, buffer, sizeof(buffer))) {
-      std::cout << buffer << std::endl;
+      std::cout << buffer << '\n';
     } else {
-      std::cout << "ERROR" << std::endl;
+      std::cout << "ERROR" << '\n';
     }
   }
 }
 
-void demoFromString() {
-  printSectionHeader("Creating SocketAddress from String");
+void DemoFromString() {
+  PrintSectionHeader("Creating SocketAddress from String");
 
   const char* addresses[] = {"192.168.1.1", "10.0.0.1", "127.0.0.1", "8.8.8.8"};
 
   char buffer[16];
 
-  for (const char* addrStr : addresses) {
-    SocketAddress addr = SocketConstants::FromString(addrStr);
+  for (const char* addr_str : addresses) {
+    SocketAddress const addr = SocketConstants::FromString(addr_str);
     SocketConstants::FormatIPv4(addr.ipv4.hostOrderAddress, buffer,
                                 sizeof(buffer));
 
-    std::cout << std::left << std::setw(20) << addrStr << " -> " << buffer
-              << std::endl;
+    std::cout << std::left << std::setw(20) << addr_str << " -> " << buffer
+              << '\n';
   }
 }
 
-void demoRealWorldUsage() {
-  printSectionHeader("Real-World Usage Example");
+void DemoRealWorldUsage() {
+  PrintSectionHeader("Real-World Usage Example");
 
   std::cout << "\nCreating a UDP socket and binding to all interfaces...\n"
-            << std::endl;
+            << '\n';
 
   auto factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
-    std::cerr << "ERROR: Socket factory not initialized!" << std::endl;
+    std::cerr << "ERROR: Socket factory not initialized!" << '\n';
     return;
   }
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (!socket) {
-    std::cerr << "ERROR: Failed to create socket!" << std::endl;
+    std::cerr << "ERROR: Failed to create socket!" << '\n';
     return;
   }
 
   // Bind to any interface on port 0 (OS chooses port)
-  SocketAddress bindAddr = SocketConstants::Any();
-  SocketError bindResult = socket->Bind(bindAddr, SocketConstants::kPortAny);
+  SocketAddress const bind_addr = SocketConstants::Any();
+  SocketError const bind_result =
+    socket->Bind(bind_addr, SocketConstants::kPortAny);
 
-  if (bindResult != SocketError::kNone) {
-    std::cerr << "ERROR: Failed to bind socket!" << std::endl;
+  if (bind_result != SocketError::kNone) {
+    std::cerr << "ERROR: Failed to bind socket!" << '\n';
     return;
   }
 
-  std::uint16_t localPort = socket->LocalPort();
+  std::uint16_t local_port = socket->LocalPort();
 
   char buffer[16];
-  SocketConstants::FormatIPv4(bindAddr.ipv4.hostOrderAddress, buffer,
+  SocketConstants::FormatIPv4(bind_addr.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
 
-  std::cout << "✓ Socket created successfully" << std::endl;
-  std::cout << "✓ Bound to address: " << buffer << std::endl;
-  std::cout << "✓ Bound to port:    " << localPort << std::endl;
+  std::cout << "✓ Socket created successfully" << '\n';
+  std::cout << "✓ Bound to address: " << buffer << '\n';
+  std::cout << "✓ Bound to port:    " << local_port << '\n';
 
   // Demonstrate sending to localhost
-  std::cout << "\nPreparing to send to localhost:" << localPort << "..."
-            << std::endl;
+  std::cout << "\nPreparing to send to localhost:" << local_port << "..."
+            << '\n';
 
-  SocketAddress destAddr = SocketConstants::Loopback();
-  SocketConstants::FormatIPv4(destAddr.ipv4.hostOrderAddress, buffer,
+  SocketAddress const dest_addr = SocketConstants::Loopback();
+  SocketConstants::FormatIPv4(dest_addr.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
 
-  std::cout << "✓ Destination: " << buffer << ":" << localPort << std::endl;
+  std::cout << "✓ Destination: " << buffer << ":" << local_port << '\n';
 
   const char* message = "Hello from SocketConstants demo!";
-  SocketResult sendResult =
-    socket->SendTo(message, strlen(message), destAddr, localPort);
+  SocketResult const send_result =
+    socket->SendTo(message, strlen(message), dest_addr, local_port);
 
-  if (sendResult.Succeeded()) {
-    std::cout << "✓ Sent " << sendResult.bytes << " bytes" << std::endl;
+  if (send_result.Succeeded()) {
+    std::cout << "✓ Sent " << send_result.bytes << " bytes" << '\n';
   } else {
     std::cerr << "✗ Send failed with error: "
-              << static_cast<int>(sendResult.error) << std::endl;
+              << static_cast<int>(send_result.error) << '\n';
   }
 
-  std::cout << "\nSocket demo completed successfully!" << std::endl;
+  std::cout << "\nSocket demo completed successfully!" << '\n';
 }
 
-void demoComparison() {
-  printSectionHeader("Before vs After SocketConstants");
+void DemoComparison() {
+  PrintSectionHeader("Before vs After SocketConstants");
 
-  std::cout << "\n--- BEFORE (Platform-Specific) ---\n" << std::endl;
-  std::cout << "#if defined(_WIN32)" << std::endl;
-  std::cout << "#include <winsock2.h>" << std::endl;
-  std::cout << "#else" << std::endl;
-  std::cout << "#include <netinet/in.h>" << std::endl;
-  std::cout << "#endif" << std::endl;
+  std::cout << "\n--- BEFORE (Platform-Specific) ---\n" << '\n';
+  std::cout << "#if defined(_WIN32)" << '\n';
+  std::cout << "#include <winsock2.h>" << '\n';
+  std::cout << "#else" << '\n';
+  std::cout << "#include <netinet/in.h>" << '\n';
+  std::cout << "#endif" << '\n';
   std::cout << "\nSocketAddress addr = SocketAddress::fromIPv4(INADDR_ANY);"
-            << std::endl;
+            << '\n';
   std::cout
     << "SocketAddress dest = SocketAddress::fromIPv4(htonl(INADDR_LOOPBACK));"
-    << std::endl;
+    << '\n';
 
-  std::cout << "\n--- AFTER (Cross-Platform) ---\n" << std::endl;
-  std::cout << "#include \"socket_constants.hpp\"" << std::endl;
-  std::cout << "\nSocketAddress addr = SocketConstants::Any();" << std::endl;
-  std::cout << "SocketAddress dest = SocketConstants::Loopback();" << std::endl;
+  std::cout << "\n--- AFTER (Cross-Platform) ---\n" << '\n';
+  std::cout << "#include \"socket_constants.hpp\"" << '\n';
+  std::cout << "\nSocketAddress addr = SocketConstants::Any();" << '\n';
+  std::cout << "SocketAddress dest = SocketConstants::Loopback();" << '\n';
 
-  std::cout << "\n✓ Cleaner code" << std::endl;
-  std::cout << "✓ No platform-specific #ifdef blocks" << std::endl;
-  std::cout << "✓ No manual byte order conversions" << std::endl;
-  std::cout << "✓ Same code works on Windows, Linux, and macOS" << std::endl;
+  std::cout << "\n✓ Cleaner code" << '\n';
+  std::cout << "✓ No platform-specific #ifdef blocks" << '\n';
+  std::cout << "✓ No manual byte order conversions" << '\n';
+  std::cout << "✓ Same code works on Windows, Linux, and macOS" << '\n';
 }
 
 int main() {
   std::cout << "\n";
   std::cout << "╔════════════════════════════════════════════════════════════╗"
-            << std::endl;
+            << '\n';
   std::cout << "║                                                            ║"
-            << std::endl;
+            << '\n';
   std::cout << "║         SocketWire SocketConstants Demo                   ║"
-            << std::endl;
+            << '\n';
   std::cout << "║         Cross-Platform Network Constants                  ║"
-            << std::endl;
+            << '\n';
   std::cout << "║                                                            ║"
-            << std::endl;
+            << '\n';
   std::cout << "╚════════════════════════════════════════════════════════════╝"
-            << std::endl;
+            << '\n';
 
   // Initialize sockets for real-world demo
   socketwire::InitializeSockets();
 
   // Run all demonstrations
-  demoConstants();
-  demoFactoryMethods();
-  demoFromOctets();
-  demoParseIPv4();
-  demoFormatIPv4();
-  demoFromString();
-  demoRealWorldUsage();
-  demoComparison();
+  DemoConstants();
+  DemoFactoryMethods();
+  DemoFromOctets();
+  DemoParseIPv4();
+  DemoFormatIPv4();
+  DemoFromString();
+  DemoRealWorldUsage();
+  DemoComparison();
 
-  printSectionHeader("Demo Complete");
-  std::cout << "\nAll features demonstrated successfully!" << std::endl;
-  std::cout << "\nFor more information, see:" << std::endl;
-  std::cout << "  - docs/SocketConstants.md" << std::endl;
-  std::cout << "  - docs/MigrationToSocketConstants.md" << std::endl;
-  std::cout << std::endl;
+  PrintSectionHeader("Demo Complete");
+  std::cout << "\nAll features demonstrated successfully!" << '\n';
+  std::cout << "\nFor more information, see:" << '\n';
+  std::cout << "  - docs/SocketConstants.md" << '\n';
+  std::cout << "  - docs/MigrationToSocketConstants.md" << '\n';
+  std::cout << '\n';
 
   return 0;
 }

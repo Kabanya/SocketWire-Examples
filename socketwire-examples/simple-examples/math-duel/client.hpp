@@ -1,8 +1,8 @@
 #ifndef CLIENT_TEST_SOCKET_H
 #define CLIENT_TEST_SOCKET_H
 
-void receive_messages(int sfd);
+void ReceiveMessages(int sfd);
 
-void display_help();
+void DisplayHelp();
 
 #endif  // CLIENT_TEST_SOCKET_H

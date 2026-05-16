@@ -4,17 +4,18 @@
 #include "bit_stream.hpp"
 #include "reliable_connection.hpp"
 
-void send_join(socketwire::ReliableConnection* connection) {
+void SendJoin(socketwire::ReliableConnection* connection) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_CLIENT_TO_SERVER_JOIN);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  bs.Write<std::uint8_t>(kEClientToServerJoin);
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_new_entity(socketwire::ReliableConnection* connection,
-                     const Entity& ent) {
+void SendNewEntity(socketwire::ReliableConnection* connection,
+                   const Entity& ent) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_NEW_ENTITY);
+  bs.Write<std::uint8_t>(kEServerToClientNewEntity);
   bs.Write<std::uint32_t>(ent.color);
   bs.Write<float>(ent.x);
   bs.Write<float>(ent.y);
@@ -24,91 +25,99 @@ void send_new_entity(socketwire::ReliableConnection* connection,
   bs.Write<float>(ent.targetY);
   bs.Write<float>(ent.size);
   bs.Write<int>(ent.score);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_set_controlled_entity(socketwire::ReliableConnection* connection,
-                                std::uint16_t eid) {
+void SendSetControlledEntity(socketwire::ReliableConnection* connection,
+                             std::uint16_t eid) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
+  bs.Write<std::uint8_t>(kEServerToClientSetControlledEntity);
   bs.Write<std::uint16_t>(eid);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_entity_state(socketwire::ReliableConnection* connection,
-                       std::uint16_t eid, float x, float y) {
+void SendEntityState(socketwire::ReliableConnection* connection,
+                     std::uint16_t eid, float x, float y) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_CLIENT_TO_SERVER_STATE);
+  bs.Write<std::uint8_t>(kEClientToServerState);
   bs.Write<std::uint16_t>(eid);
   bs.Write<float>(x);
   bs.Write<float>(y);
-  if (connection->SendUnsequenced(1, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  if (connection->SendUnsequenced(1, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_snapshot(socketwire::ReliableConnection* connection,
-                   std::uint16_t eid, float x, float y, float size) {
+void SendSnapshot(socketwire::ReliableConnection* connection, std::uint16_t eid,
+                  float x, float y, float size) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SNAPSHOT);
+  bs.Write<std::uint8_t>(kEServerToClientSnapshot);
   bs.Write<std::uint16_t>(eid);
   bs.Write<float>(x);
   bs.Write<float>(y);
   bs.Write<float>(size);
-  if (connection->SendUnsequenced(1, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  if (connection->SendUnsequenced(1, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_entity_devoured(socketwire::ReliableConnection* connection,
-                          std::uint16_t devouredEid, std::uint16_t devourerEid,
-                          float newSize, float newX, float newY) {
+void SendEntityDevoured(socketwire::ReliableConnection* connection,
+                        std::uint16_t devoured_eid, std::uint16_t devourer_eid,
+                        float new_size, float new_x, float new_y) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_ENTITY_DEVOURED);
-  bs.Write<std::uint16_t>(devouredEid);
-  bs.Write<std::uint16_t>(devourerEid);
-  bs.Write<float>(newSize);
-  bs.Write<float>(newX);
-  bs.Write<float>(newY);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  bs.Write<std::uint8_t>(kEServerToClientEntityDevoured);
+  bs.Write<std::uint16_t>(devoured_eid);
+  bs.Write<std::uint16_t>(devourer_eid);
+  bs.Write<float>(new_size);
+  bs.Write<float>(new_x);
+  bs.Write<float>(new_y);
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_score_update(socketwire::ReliableConnection* connection,
-                       std::uint16_t eid, int score) {
+void SendScoreUpdate(socketwire::ReliableConnection* connection,
+                     std::uint16_t eid, int score) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_SCORE_UPDATE);
+  bs.Write<std::uint8_t>(kEServerToClientScoreUpdate);
   bs.Write<std::uint16_t>(eid);
   bs.Write<int>(score);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_game_time(socketwire::ReliableConnection* connection,
-                    int secondsRemaining) {
+void SendGameTime(socketwire::ReliableConnection* connection,
+                  int seconds_remaining) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_GAME_TIME);
-  bs.Write<int>(secondsRemaining);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  bs.Write<std::uint8_t>(kEServerToClientGameTime);
+  bs.Write<int>(seconds_remaining);
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-void send_game_over(socketwire::ReliableConnection* connection,
-                    std::uint16_t winnerEid, int winnerScore) {
+void SendGameOver(socketwire::ReliableConnection* connection,
+                  std::uint16_t winner_eid, int winner_score) {
   socketwire::BitStream bs;
-  bs.Write<std::uint8_t>(E_SERVER_TO_CLIENT_GAME_OVER);
-  bs.Write<std::uint16_t>(winnerEid);
-  bs.Write<int>(winnerScore);
-  if (connection->SendReliable(0, bs))
-    socketwire_examples::benchmark::recordPayloadTx(bs.GetSizeBytes());
+  bs.Write<std::uint8_t>(kEServerToClientGameOver);
+  bs.Write<std::uint16_t>(winner_eid);
+  bs.Write<int>(winner_score);
+  if (connection->SendReliable(0, bs)) {
+    socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
+  }
 }
 
-MessageType get_packet_type(const void* data, std::size_t size) {
-  if (data == nullptr || size < 1) return E_CLIENT_TO_SERVER_JOIN;
+MessageType GetPacketType(const void* data, std::size_t size) {
+  if (data == nullptr || size < 1) return kEClientToServerJoin;
   return static_cast<MessageType>(*static_cast<const std::uint8_t*>(data));
 }
 
-void deserialize_new_entity(const void* data, std::size_t size, Entity& ent) {
+void DeserializeNewEntity(const void* data, std::size_t size, Entity& ent) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
@@ -123,52 +132,51 @@ void deserialize_new_entity(const void* data, std::size_t size, Entity& ent) {
   bs.Read<int>(ent.score);
 }
 
-void deserialize_set_controlled_entity(const void* data, std::size_t size,
-                                       std::uint16_t& eid) {
+void DeserializeSetControlledEntity(const void* data, std::size_t size,
+                                    std::uint16_t& eid) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
   bs.Read<std::uint16_t>(eid);
 }
 
-void deserialize_entity_state(const void* data, std::size_t size,
-                              std::uint16_t& eid, float& x, float& y) {
-  socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
-  std::uint8_t type = 0;
-  bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint16_t>(eid);
-  bs.Read<float>(x);
-  bs.Read<float>(y);
-}
-
-void deserialize_snapshot(const void* data, std::size_t size,
-                          std::uint16_t& eid, float& x, float& y,
-                          float& sizeOut) {
+void DeserializeEntityState(const void* data, std::size_t size,
+                            std::uint16_t& eid, float& x, float& y) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
   bs.Read<std::uint16_t>(eid);
   bs.Read<float>(x);
   bs.Read<float>(y);
-  bs.Read<float>(sizeOut);
 }
 
-void deserialize_entity_devoured(const void* data, std::size_t size,
-                                 std::uint16_t& devouredEid,
-                                 std::uint16_t& devourerEid, float& newSize,
-                                 float& newX, float& newY) {
+void DeserializeSnapshot(const void* data, std::size_t size, std::uint16_t& eid,
+                         float& x, float& y, float& size_out) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint16_t>(devouredEid);
-  bs.Read<std::uint16_t>(devourerEid);
-  bs.Read<float>(newSize);
-  bs.Read<float>(newX);
-  bs.Read<float>(newY);
+  bs.Read<std::uint16_t>(eid);
+  bs.Read<float>(x);
+  bs.Read<float>(y);
+  bs.Read<float>(size_out);
 }
 
-void deserialize_score_update(const void* data, std::size_t size,
-                              std::uint16_t& eid, int& score) {
+void DeserializeEntityDevoured(const void* data, std::size_t size,
+                               std::uint16_t& devoured_eid,
+                               std::uint16_t& devourer_eid, float& new_size,
+                               float& new_x, float& new_y) {
+  socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
+  std::uint8_t type = 0;
+  bs.Read<std::uint8_t>(type);
+  bs.Read<std::uint16_t>(devoured_eid);
+  bs.Read<std::uint16_t>(devourer_eid);
+  bs.Read<float>(new_size);
+  bs.Read<float>(new_x);
+  bs.Read<float>(new_y);
+}
+
+void DeserializeScoreUpdate(const void* data, std::size_t size,
+                            std::uint16_t& eid, int& score) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
@@ -176,19 +184,19 @@ void deserialize_score_update(const void* data, std::size_t size,
   bs.Read<int>(score);
 }
 
-void deserialize_game_over(const void* data, std::size_t size,
-                           std::uint16_t& winnerEid, int& winnerScore) {
+void DeserializeGameOver(const void* data, std::size_t size,
+                         std::uint16_t& winner_eid, int& winner_score) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint16_t>(winnerEid);
-  bs.Read<int>(winnerScore);
+  bs.Read<std::uint16_t>(winner_eid);
+  bs.Read<int>(winner_score);
 }
 
-void deserialize_game_time(const void* data, std::size_t size,
-                           int& secondsRemaining) {
+void DeserializeGameTime(const void* data, std::size_t size,
+                         int& seconds_remaining) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
-  bs.Read<int>(secondsRemaining);
+  bs.Read<int>(seconds_remaining);
 }

@@ -7,14 +7,14 @@
 
 namespace projectile_arena {
 
-constexpr std::uint16_t K_PORT = 53477;
+constexpr std::uint16_t kKPort = 53477;
 
 enum class MessageType : std::uint8_t {
-  Join = 1,
-  Welcome = 2,
-  Input = 3,
-  Fire = 4,
-  Snapshot = 5,
+  kJoin = 1,
+  kWelcome = 2,
+  kInput = 3,
+  kFire = 4,
+  kSnapshot = 5,
 };
 
 struct InputState {
@@ -48,40 +48,40 @@ struct WorldSnapshot {
   std::vector<ProjectileSnapshot> projectiles;
 };
 
-inline socketwire::BitStream make_join() {
+inline socketwire::BitStream MakeJoin() {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Join));
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::kJoin));
   return stream;
 }
 
-inline socketwire::BitStream make_welcome(std::uint16_t playerId) {
+inline socketwire::BitStream MakeWelcome(std::uint16_t player_id) {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Welcome));
-  stream.Write<std::uint16_t>(playerId);
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::kWelcome));
+  stream.Write<std::uint16_t>(player_id);
   return stream;
 }
 
-inline socketwire::BitStream make_input(const InputState& input) {
+inline socketwire::BitStream MakeInput(const InputState& input) {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Input));
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::kInput));
   stream.Write<std::uint32_t>(input.tick);
   stream.Write<float>(input.axisX);
   stream.Write<float>(input.axisY);
   return stream;
 }
 
-inline socketwire::BitStream make_fire(const FireCommand& fire) {
+inline socketwire::BitStream MakeFire(const FireCommand& fire) {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Fire));
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::kFire));
   stream.Write<std::uint32_t>(fire.tick);
   stream.Write<float>(fire.aimX);
   stream.Write<float>(fire.aimY);
   return stream;
 }
 
-inline socketwire::BitStream make_snapshot(const WorldSnapshot& snapshot) {
+inline socketwire::BitStream MakeSnapshot(const WorldSnapshot& snapshot) {
   socketwire::BitStream stream;
-  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::Snapshot));
+  stream.Write<std::uint8_t>(static_cast<std::uint8_t>(MessageType::kSnapshot));
   stream.Write<std::uint32_t>(snapshot.tick);
   stream.Write<std::uint16_t>(
     static_cast<std::uint16_t>(snapshot.players.size()));
@@ -102,49 +102,49 @@ inline socketwire::BitStream make_snapshot(const WorldSnapshot& snapshot) {
   return stream;
 }
 
-inline bool read_type(socketwire::BitStream& stream, MessageType& type) {
+inline bool ReadType(socketwire::BitStream& stream, MessageType& type) {
   const auto value = stream.TryRead<std::uint8_t>();
   if (!value) return false;
   type = static_cast<MessageType>(*value);
   return true;
 }
 
-inline bool read_welcome(socketwire::BitStream& stream,
-                         std::uint16_t& playerId) {
+inline bool ReadWelcome(socketwire::BitStream& stream,
+                        std::uint16_t& player_id) {
   const auto value = stream.TryRead<std::uint16_t>();
   if (!value) return false;
-  playerId = *value;
+  player_id = *value;
   return true;
 }
 
-inline bool read_input(socketwire::BitStream& stream, InputState& input) {
+inline bool ReadInput(socketwire::BitStream& stream, InputState& input) {
   const auto tick = stream.TryRead<std::uint32_t>();
-  const auto axisX = stream.TryRead<float>();
-  const auto axisY = stream.TryRead<float>();
-  if (!tick || !axisX || !axisY) return false;
-  input = InputState{*tick, *axisX, *axisY};
+  const auto axis_x = stream.TryRead<float>();
+  const auto axis_y = stream.TryRead<float>();
+  if (!tick || !axis_x || !axis_y) return false;
+  input = InputState{*tick, *axis_x, *axis_y};
   return true;
 }
 
-inline bool read_fire(socketwire::BitStream& stream, FireCommand& fire) {
+inline bool ReadFire(socketwire::BitStream& stream, FireCommand& fire) {
   const auto tick = stream.TryRead<std::uint32_t>();
-  const auto aimX = stream.TryRead<float>();
-  const auto aimY = stream.TryRead<float>();
-  if (!tick || !aimX || !aimY) return false;
-  fire = FireCommand{*tick, *aimX, *aimY};
+  const auto aim_x = stream.TryRead<float>();
+  const auto aim_y = stream.TryRead<float>();
+  if (!tick || !aim_x || !aim_y) return false;
+  fire = FireCommand{*tick, *aim_x, *aim_y};
   return true;
 }
 
-inline bool read_snapshot(socketwire::BitStream& stream,
-                          WorldSnapshot& snapshot) {
+inline bool ReadSnapshot(socketwire::BitStream& stream,
+                         WorldSnapshot& snapshot) {
   const auto tick = stream.TryRead<std::uint32_t>();
-  const auto playerCount = stream.TryRead<std::uint16_t>();
-  if (!tick || !playerCount) return false;
+  const auto player_count = stream.TryRead<std::uint16_t>();
+  if (!tick || !player_count) return false;
 
   snapshot = {};
   snapshot.tick = *tick;
-  snapshot.players.reserve(*playerCount);
-  for (std::uint16_t i = 0; i < *playerCount; ++i) {
+  snapshot.players.reserve(*player_count);
+  for (std::uint16_t i = 0; i < *player_count; ++i) {
     const auto id = stream.TryRead<std::uint16_t>();
     const auto x = stream.TryRead<float>();
     const auto y = stream.TryRead<float>();
@@ -152,17 +152,17 @@ inline bool read_snapshot(socketwire::BitStream& stream,
     snapshot.players.push_back(PlayerSnapshot{*id, *x, *y});
   }
 
-  const auto projectileCount = stream.TryRead<std::uint16_t>();
-  if (!projectileCount) return false;
+  const auto projectile_count = stream.TryRead<std::uint16_t>();
+  if (!projectile_count) return false;
 
-  snapshot.projectiles.reserve(*projectileCount);
-  for (std::uint16_t i = 0; i < *projectileCount; ++i) {
+  snapshot.projectiles.reserve(*projectile_count);
+  for (std::uint16_t i = 0; i < *projectile_count; ++i) {
     const auto id = stream.TryRead<std::uint16_t>();
-    const auto ownerId = stream.TryRead<std::uint16_t>();
+    const auto owner_id = stream.TryRead<std::uint16_t>();
     const auto x = stream.TryRead<float>();
     const auto y = stream.TryRead<float>();
-    if (!id || !ownerId || !x || !y) return false;
-    snapshot.projectiles.push_back(ProjectileSnapshot{*id, *ownerId, *x, *y});
+    if (!id || !owner_id || !x || !y) return false;
+    snapshot.projectiles.push_back(ProjectileSnapshot{*id, *owner_id, *x, *y});
   }
   return true;
 }

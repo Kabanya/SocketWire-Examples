@@ -16,71 +16,74 @@
 static std::vector<Entity> entities;
 static std::map<std::uint16_t,
                 socketwire_examples::ServerConnectionHub::Client*>
-  controlledMap;
+  controlled_map;
 
-static std::mt19937& random_generator() {
+static std::mt19937& RandomGenerator() {
   static std::random_device random_device;
   static std::mt19937 generator(random_device());
   return generator;
 }
 
-static int random_int(int min, int max) {
+static int RandomInt(int min, int max) {
   std::uniform_int_distribution<int> distribution(min, max);
-  return distribution(random_generator());
+  return distribution(RandomGenerator());
 }
 
-static float random_spawn(const float max_size = 10.f) {
-  return static_cast<float>(random_int(-50, 49)) * max_size;
+static float RandomSpawn(const float max_size = 10.f) {
+  return static_cast<float>(RandomInt(-50, 49)) * max_size;
 }
 
-static std::uint16_t create_random_entity() {
-  const auto newEid = static_cast<std::uint16_t>(entities.size());
+static std::uint16_t CreateRandomEntity() {
+  const auto new_eid = static_cast<std::uint16_t>(entities.size());
   const std::uint32_t color =
-    0xff000000u + 0x00440000u * static_cast<std::uint32_t>(random_int(1, 4)) +
-    0x00004400u * static_cast<std::uint32_t>(random_int(1, 4)) +
-    0x00000044u * static_cast<std::uint32_t>(random_int(1, 4));
+    0xff000000u + 0x00440000u * static_cast<std::uint32_t>(RandomInt(1, 4)) +
+    0x00004400u * static_cast<std::uint32_t>(RandomInt(1, 4)) +
+    0x00000044u * static_cast<std::uint32_t>(RandomInt(1, 4));
 
   Entity ent;
   ent.color = color;
-  ent.x = random_spawn();
-  ent.y = random_spawn();
-  ent.eid = newEid;
+  ent.x = RandomSpawn();
+  ent.y = RandomSpawn();
+  ent.eid = new_eid;
   ent.serverControlled = false;
   ent.targetX = 0.f;
   ent.targetY = 0.f;
-  ent.size = 5.f + static_cast<float>(random_int(0, 5));
+  ent.size = 5.f + static_cast<float>(RandomInt(0, 5));
   ent.score = 0;
 
   entities.push_back(ent);
-  return newEid;
+  return new_eid;
 }
 
-static void broadcast_new_entity(socketwire_examples::ServerConnectionHub& hub,
-                                 const Entity& ent) {
-  for (auto* client : hub.clients())
+static void BroadcastNewEntity(socketwire_examples::ServerConnectionHub& hub,
+                               const Entity& ent) {
+  for (auto* client : hub.Clients()) {
     if (client != nullptr && client->connection != nullptr &&
-        client->connection->IsConnected())
-      send_new_entity(client->connection.get(), ent);
+        client->connection->IsConnected()) {
+      SendNewEntity(client->connection.get(), ent);
+    }
+  }
 }
 
-static void on_join(socketwire_examples::ServerConnectionHub& hub,
-                    socketwire_examples::ServerConnectionHub::Client& client) {
-  for (const Entity& ent : entities)
-    send_new_entity(client.connection.get(), ent);
+static void OnJoin(socketwire_examples::ServerConnectionHub& hub,
+                   socketwire_examples::ServerConnectionHub::Client& client) {
+  for (const Entity& ent : entities) {
+    SendNewEntity(client.connection.get(), ent);
+  }
 
-  const std::uint16_t newEid = create_random_entity();
-  const Entity& ent = entities[newEid];
-  controlledMap[newEid] = &client;
+  const std::uint16_t new_eid = CreateRandomEntity();
+  const Entity& ent = entities[new_eid];
+  controlled_map[new_eid] = &client;
 
-  broadcast_new_entity(hub, ent);
-  send_set_controlled_entity(client.connection.get(), newEid);
+  BroadcastNewEntity(hub, ent);
+  SendSetControlledEntity(client.connection.get(), new_eid);
 }
 
-static void on_state(const void* data, std::size_t size) {
-  std::uint16_t eid = INVALID_ENTITY;
+static void OnState(const void* data, std::size_t size) {
+  std::uint16_t eid = kInvalidEntity;
   float x = 0.f;
   float y = 0.f;
-  deserialize_entity_state(data, size, eid, x, y);
+  DeserializeEntityState(data, size, eid, x, y);
 
   for (Entity& e : entities) {
     if (e.eid == eid) {
@@ -91,150 +94,156 @@ static void on_state(const void* data, std::size_t size) {
   }
 }
 
-static void send_to_all(socketwire_examples::ServerConnectionHub& hub,
-                        void (*sendFn)(socketwire::ReliableConnection*, int),
-                        int value) {
-  for (auto* client : hub.clients())
+static void SendToAll(socketwire_examples::ServerConnectionHub& hub,
+                      void (*send_fn)(socketwire::ReliableConnection*, int),
+                      int value) {
+  for (auto* client : hub.Clients()) {
     if (client != nullptr && client->connection != nullptr &&
-        client->connection->IsConnected())
-      sendFn(client->connection.get(), value);
+        client->connection->IsConnected()) {
+      send_fn(client->connection.get(), value);
+    }
+  }
 }
 
 int main(int argc, const char** argv) {
-  auto benchOptions =
-    socketwire_examples::benchmark::parseOptions(argc, argv, 10131);
+  auto bench_options =
+    socketwire_examples::benchmark::ParseOptions(argc, argv, 10131);
   socketwire_examples::benchmark::MetricsCollector metrics(
-    benchOptions, "entity-eater", "socketwire", "server");
-  socketwire_examples::benchmark::setActiveCollector(&metrics);
+    bench_options, "entity-eater", "socketwire", "server");
+  socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
-  const std::uint16_t listenPort =
-    benchOptions.enabled
-      ? benchOptions.port
-      : socketwire_examples::portFromArgsOrEnv(
+  const std::uint16_t listen_port =
+    bench_options.enabled
+      ? bench_options.port
+      : socketwire_examples::PortFromArgsOrEnv(
           argc, argv, 1, "SOCKETWIRE_ENTITY_EATER_PORT", 10131);
 
-  auto socket = socketwire_examples::createUdpSocket(listenPort);
+  auto socket = socketwire_examples::CreateUdpSocket(listen_port);
   if (socket == nullptr) return 1;
 
   socketwire::ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
 
-  bool createdAiEntities = false;
-  constexpr int NUM_AI = 10;
+  bool created_ai_entities = false;
+  constexpr int num_ai = 10;
 
-  constexpr int GAME_DURATION = 60;
-  int gameTimeRemaining = GAME_DURATION;
-  auto lastTimeUpdate = std::chrono::steady_clock::now();
-  bool gameOver = false;
+  constexpr int game_duration = 60;
+  int game_time_remaining = game_duration;
+  auto last_time_update = std::chrono::steady_clock::now();
+  bool game_over = false;
 
-  hub.setDisconnectedCallback([](auto& client) {
-    for (auto& entry : controlledMap)
+  hub.SetDisconnectedCallback([](auto& client) {
+    for (auto& entry : controlled_map) {
       if (entry.second == &client) entry.second = nullptr;
+    }
   });
 
-  hub.setPacketCallback(
+  hub.SetPacketCallback(
     [&](auto& client, std::uint8_t, const void* data, std::size_t size, bool) {
-      socketwire_examples::benchmark::recordPayloadRx(size);
-      switch (get_packet_type(data, size)) {
-        case E_CLIENT_TO_SERVER_JOIN: {
-          if (!createdAiEntities) {
-            for (int i = 0; i < NUM_AI; ++i) {
-              const std::uint16_t eid = create_random_entity();
+      socketwire_examples::benchmark::RecordPayloadRx(size);
+      switch (GetPacketType(data, size)) {
+        case kEClientToServerJoin: {
+          if (!created_ai_entities) {
+            for (int i = 0; i < num_ai; ++i) {
+              const std::uint16_t eid = CreateRandomEntity();
               entities[eid].serverControlled = true;
               entities[eid].score = 0;
-              controlledMap[eid] = nullptr;
+              controlled_map[eid] = nullptr;
             }
-            createdAiEntities = true;
+            created_ai_entities = true;
           }
-          on_join(hub, client);
+          OnJoin(hub, client);
           break;
         }
-        case E_CLIENT_TO_SERVER_STATE:
-          on_state(data, size);
+        case kEClientToServerState:
+          OnState(data, size);
           break;
-        case E_SERVER_TO_CLIENT_NEW_ENTITY:
-        case E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY:
-        case E_SERVER_TO_CLIENT_SNAPSHOT:
-        case E_SERVER_TO_CLIENT_ENTITY_DEVOURED:
-        case E_SERVER_TO_CLIENT_SCORE_UPDATE:
-        case E_SERVER_TO_CLIENT_GAME_TIME:
-        case E_SERVER_TO_CLIENT_GAME_OVER:
+        case kEServerToClientNewEntity:
+        case kEServerToClientSetControlledEntity:
+        case kEServerToClientSnapshot:
+        case kEServerToClientEntityDevoured:
+        case kEServerToClientScoreUpdate:
+        case kEServerToClientGameTime:
+        case kEServerToClientGameOver:
           break;
       }
     });
 
-  auto lastTime = std::chrono::steady_clock::now();
+  auto last_time = std::chrono::steady_clock::now();
   while (true) {
-    if (benchOptions.enabled && metrics.done()) break;
-    const auto frameStart = std::chrono::steady_clock::now();
-    const auto curTime = std::chrono::steady_clock::now();
-    const float dt =
-      std::chrono::duration_cast<std::chrono::milliseconds>(curTime - lastTime)
-        .count() *
-      0.001f;
-    lastTime = curTime;
+    if (bench_options.enabled && metrics.Done()) break;
+    const auto frame_start = std::chrono::steady_clock::now();
+    const auto cur_time = std::chrono::steady_clock::now();
+    const float dt = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       cur_time - last_time)
+                       .count() *
+                     0.001f;
+    last_time = cur_time;
 
-    const auto updateStart = std::chrono::steady_clock::now();
-    hub.poll();
-    hub.update();
+    const auto update_start = std::chrono::steady_clock::now();
+    hub.Poll();
+    hub.Update();
 
-    if (!gameOver && createdAiEntities) {
-      const auto timeSinceUpdate =
-        std::chrono::duration_cast<std::chrono::milliseconds>(curTime -
-                                                              lastTimeUpdate)
+    if (!game_over && created_ai_entities) {
+      const auto time_since_update =
+        std::chrono::duration_cast<std::chrono::milliseconds>(cur_time -
+                                                              last_time_update)
           .count();
-      if (timeSinceUpdate >= 1000) {
-        --gameTimeRemaining;
-        lastTimeUpdate = curTime;
-        send_to_all(hub, send_game_time, gameTimeRemaining);
+      if (time_since_update >= 1000) {
+        --game_time_remaining;
+        last_time_update = cur_time;
+        SendToAll(hub, SendGameTime, game_time_remaining);
 
-        if (gameTimeRemaining <= 0) {
-          gameOver = true;
-          std::uint16_t winnerEid = INVALID_ENTITY;
-          int highestScore = -1;
+        if (game_time_remaining <= 0) {
+          game_over = true;
+          std::uint16_t winner_eid = kInvalidEntity;
+          int highest_score = -1;
 
           for (const Entity& e : entities) {
-            if (e.score > highestScore) {
-              highestScore = e.score;
-              winnerEid = e.eid;
+            if (e.score > highest_score) {
+              highest_score = e.score;
+              winner_eid = e.eid;
             }
           }
 
-          for (auto* client : hub.clients())
+          for (auto* client : hub.Clients()) {
             if (client != nullptr && client->connection != nullptr &&
-                client->connection->IsConnected())
-              send_game_over(client->connection.get(), winnerEid, highestScore);
+                client->connection->IsConnected()) {
+              SendGameOver(client->connection.get(), winner_eid, highest_score);
+            }
+          }
         }
       }
     }
 
     for (Entity& e : entities) {
       if (e.serverControlled) {
-        const float diffX = e.targetX - e.x;
-        const float diffY = e.targetY - e.y;
-        const float dirX = diffX > 0.f ? 1.f : -1.f;
-        const float dirY = diffY > 0.f ? 1.f : -1.f;
-        constexpr float SPEED = 50.f;
-        e.x += dirX * SPEED * dt;
-        e.y += dirY * SPEED * dt;
-        if (std::fabs(diffX) < 10.f && std::fabs(diffY) < 10.f) {
-          e.targetX = random_spawn();
-          e.targetY = random_spawn();
+        const float diff_x = e.targetX - e.x;
+        const float diff_y = e.targetY - e.y;
+        const float dir_x = diff_x > 0.f ? 1.f : -1.f;
+        const float dir_y = diff_y > 0.f ? 1.f : -1.f;
+        constexpr float speed = 50.f;
+        e.x += dir_x * speed * dt;
+        e.y += dir_y * speed * dt;
+        if (std::fabs(diff_x) < 10.f && std::fabs(diff_y) < 10.f) {
+          e.targetX = RandomSpawn();
+          e.targetY = RandomSpawn();
         }
       }
     }
 
-    bool collisionOccurred = false;
-    for (std::size_t i = 0; i < entities.size() && !collisionOccurred; ++i) {
+    bool collision_occurred = false;
+    for (std::size_t i = 0; i < entities.size() && !collision_occurred; ++i) {
       for (std::size_t j = 0; j < entities.size(); ++j) {
         if (i == j) continue;
 
         Entity& e1 = entities[i];
         Entity& e2 = entities[j];
         if (e1.size <= 0.f || e2.size <= 0.f || e1.size > 1000.f ||
-            e2.size > 1000.f)
+            e2.size > 1000.f) {
           continue;
+        }
 
         const float dx = e1.x - e2.x;
         const float dy = e1.y - e2.y;
@@ -244,38 +253,40 @@ int main(int argc, const char** argv) {
             distance > 0.1f) {
           Entity* devourer = e1.size > e2.size ? &e1 : &e2;
           Entity* devoured = e1.size > e2.size ? &e2 : &e1;
-          const float sizeGain = devoured->size / 2.f;
+          const float size_gain = devoured->size / 2.f;
 
-          if (sizeGain > 0.f && sizeGain < 50.f) {
-            constexpr float MAX_SIZE = 100.f;
-            devourer->size = std::min(devourer->size + sizeGain, MAX_SIZE);
-            devoured->size = 5.f + static_cast<float>(random_int(0, 4));
+          if (size_gain > 0.f && size_gain < 50.f) {
+            constexpr float max_size = 100.f;
+            devourer->size = std::min(devourer->size + size_gain, max_size);
+            devoured->size = 5.f + static_cast<float>(RandomInt(0, 4));
 
             if (!devoured->serverControlled) devoured->score = 0;
 
-            devourer->score += static_cast<int>(sizeGain);
+            devourer->score += static_cast<int>(size_gain);
 
-            for (auto* client : hub.clients()) {
+            for (auto* client : hub.Clients()) {
               if (client == nullptr || client->connection == nullptr ||
-                  !client->connection->IsConnected())
+                  !client->connection->IsConnected()) {
                 continue;
-              send_score_update(client->connection.get(), devourer->eid,
-                                devourer->score);
+              }
+              SendScoreUpdate(client->connection.get(), devourer->eid,
+                              devourer->score);
             }
 
-            devoured->x = random_spawn();
-            devoured->y = random_spawn();
+            devoured->x = RandomSpawn();
+            devoured->y = RandomSpawn();
 
-            for (auto* client : hub.clients()) {
+            for (auto* client : hub.Clients()) {
               if (client == nullptr || client->connection == nullptr ||
-                  !client->connection->IsConnected())
+                  !client->connection->IsConnected()) {
                 continue;
-              send_entity_devoured(client->connection.get(), devoured->eid,
-                                   devourer->eid, devourer->size, devoured->x,
-                                   devoured->y);
+              }
+              SendEntityDevoured(client->connection.get(), devoured->eid,
+                                 devourer->eid, devourer->size, devoured->x,
+                                 devoured->y);
             }
 
-            collisionOccurred = true;
+            collision_occurred = true;
           }
           break;
         }
@@ -283,39 +294,41 @@ int main(int argc, const char** argv) {
     }
 
     for (const Entity& e : entities) {
-      for (auto* client : hub.clients()) {
+      for (auto* client : hub.Clients()) {
         if (client == nullptr || client->connection == nullptr ||
-            !client->connection->IsConnected())
+            !client->connection->IsConnected()) {
           continue;
-        if (controlledMap[e.eid] != client)
-          send_snapshot(client->connection.get(), e.eid, e.x, e.y, e.size);
+        }
+        if (controlled_map[e.eid] != client) {
+          SendSnapshot(client->connection.get(), e.eid, e.x, e.y, e.size);
+        }
       }
     }
-    const auto updateEnd = std::chrono::steady_clock::now();
+    const auto update_end = std::chrono::steady_clock::now();
 
-    if (benchOptions.enabled) {
-      const auto clients = hub.clients();
-      metrics.setConnectedClients(static_cast<int>(clients.size()));
-      metrics.setNetworkStats(
-        socketwire_examples::benchmark::statsFromClients(clients));
-      metrics.recordUpdateMs(
+    if (bench_options.enabled) {
+      const auto clients = hub.Clients();
+      metrics.SetConnectedClients(static_cast<int>(clients.size()));
+      metrics.SetNetworkStats(
+        socketwire_examples::benchmark::StatsFromClients(clients));
+      metrics.RecordUpdateMs(
         static_cast<double>(
-          std::chrono::duration_cast<std::chrono::microseconds>(updateEnd -
-                                                                updateStart)
+          std::chrono::duration_cast<std::chrono::microseconds>(update_end -
+                                                                update_start)
             .count()) /
         1000.0);
-      metrics.recordFrameMs(
+      metrics.RecordFrameMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - frameStart)
+            std::chrono::steady_clock::now() - frame_start)
             .count()) /
         1000.0);
-      metrics.maybeWriteSample();
+      metrics.MaybeWriteSample();
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  metrics.finish();
-  socketwire_examples::benchmark::setActiveCollector(nullptr);
+  metrics.Finish();
+  socketwire_examples::benchmark::SetActiveCollector(nullptr);
 }
