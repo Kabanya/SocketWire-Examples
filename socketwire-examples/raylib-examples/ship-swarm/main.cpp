@@ -2,6 +2,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <print>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -22,11 +26,99 @@ static std::uint32_t total_in_data = 0;
 static std::uint32_t total_out_data = 0;
 static std::uint32_t server_time_msec = 0;
 
+static constexpr std::uint16_t kDefaultShipSwarmPort = 10133;
+
 struct BandwidthAccumulator {
   std::vector<std::pair<std::uint32_t, float>> inData;
   std::vector<std::pair<std::uint32_t, float>> outData;
   float curTime = 0.f;
 };
+
+struct ClientEndpoint {
+  std::string host = "127.0.0.1";
+  std::uint16_t port = kDefaultShipSwarmPort;
+};
+
+static bool IsOptionWithValue(std::string_view option) {
+  return option == "--host" || option == "--port" || option == "--lobby-port" ||
+         option == "--game-port" || option == "--duration-ms" ||
+         option == "--warmup-ms" || option == "--seed" ||
+         option == "--metrics" || option == "--metrics-mode" ||
+         option == "--clients" || option == "--run";
+}
+
+static std::vector<std::string_view> CollectPositionals(int argc,
+                                                        const char** argv) {
+  std::vector<std::string_view> positionals;
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i] == nullptr) continue;
+
+    const std::string_view arg(argv[i]);
+    if (socketwire_examples::IsCommandLineOption(argv[i])) {
+      if (IsOptionWithValue(arg) && i + 1 < argc) ++i;
+      continue;
+    }
+
+    positionals.push_back(arg);
+  }
+  return positionals;
+}
+
+static ClientEndpoint ResolveClientEndpoint(
+  int argc, const char** argv,
+  const socketwire_examples::benchmark::Options& bench_options) {
+  ClientEndpoint endpoint{bench_options.host, bench_options.port};
+  if (bench_options.enabled) return endpoint;
+
+  endpoint = ClientEndpoint{};
+
+  if (const char* env_host = std::getenv("SOCKETWIRE_SHIP_SWARM_HOST");
+      env_host != nullptr && *env_host != '\0') {
+    endpoint.host = env_host;
+  }
+
+  if (const char* env_port = std::getenv("SOCKETWIRE_SHIP_SWARM_PORT");
+      env_port != nullptr && *env_port != '\0') {
+    if (const auto parsed = socketwire_examples::ParsePort(env_port);
+        parsed.has_value()) {
+      endpoint.port = *parsed;
+    } else {
+      std::println(
+        "Ignoring invalid port in SOCKETWIRE_SHIP_SWARM_PORT='{}'; "
+        "using {}",
+        env_port, static_cast<unsigned>(endpoint.port));
+    }
+  }
+
+  if (socketwire_examples::HasCommandLineOption(argc, argv, "--host")) {
+    endpoint.host = bench_options.host;
+  }
+  if (socketwire_examples::HasCommandLineOption(argc, argv, "--port")) {
+    endpoint.port = bench_options.port;
+  }
+
+  const std::vector<std::string_view> positionals =
+    CollectPositionals(argc, argv);
+  if (!positionals.empty()) {
+    if (const auto parsed = socketwire_examples::ParsePort(positionals[0]);
+        parsed.has_value()) {
+      endpoint.port = *parsed;
+    } else {
+      endpoint.host = std::string(positionals[0]);
+    }
+  }
+  if (positionals.size() >= 2) {
+    if (const auto parsed = socketwire_examples::ParsePort(positionals[1]);
+        parsed.has_value()) {
+      endpoint.port = *parsed;
+    } else {
+      std::println("Ignoring invalid ship-swarm port argument '{}'; using {}",
+                   positionals[1], static_cast<unsigned>(endpoint.port));
+    }
+  }
+
+  return endpoint;
+}
 
 static std::uint32_t GetDeltaData(
   const std::vector<std::pair<std::uint32_t, float>>& data) {
@@ -161,7 +253,9 @@ static void SimulateWorld(
   });
 }
 
-static void DrawWorld(const Camera2D& camera, const BandwidthAccumulator& bw) {
+static void DrawWorld(const Camera2D& camera, const BandwidthAccumulator& bw,
+                      const ClientEndpoint& endpoint,
+                      const ClientHandler& handler) {
   BeginDrawing();
   ClearBackground(DARKGRAY);
   BeginMode2D(camera);
@@ -171,31 +265,38 @@ static void DrawWorld(const Camera2D& camera, const BandwidthAccumulator& bw) {
 
   constexpr std::size_t num_grid = 10;
   for (std::size_t y = 1; y < num_grid; ++y) {
-    DrawLine(
-      -kWorldSize,
-      -kWorldSize + 2.f * kWorldSize * (static_cast<float>(y) / num_grid),
-      kWorldSize,
-      -kWorldSize + 2.f * kWorldSize * (static_cast<float>(y) / num_grid),
-      GetColor(0xffffffff));
+    const float grid_fraction =
+      static_cast<float>(y) / static_cast<float>(num_grid);
+    const float y_pos = -kWorldSize + 2.f * kWorldSize * grid_fraction;
+    DrawLineV(Vector2{-kWorldSize, y_pos}, Vector2{kWorldSize, y_pos},
+              GetColor(0xffffffff));
   }
 
   for (std::size_t x = 1; x < num_grid; ++x) {
-    DrawLine(
-      -kWorldSize + 2.f * kWorldSize * (static_cast<float>(x) / num_grid),
-      -kWorldSize,
-      -kWorldSize + 2.f * kWorldSize * (static_cast<float>(x) / num_grid),
-      kWorldSize, GetColor(0xffffffff));
+    const float grid_fraction =
+      static_cast<float>(x) / static_cast<float>(num_grid);
+    const float x_pos = -kWorldSize + 2.f * kWorldSize * grid_fraction;
+    DrawLineV(Vector2{x_pos, -kWorldSize}, Vector2{x_pos, kWorldSize},
+              GetColor(0xffffffff));
   }
 
   for (const Entity& e : entities) DrawEntity(e);
 
   EndMode2D();
-  DrawText(
-    TextFormat("Bandwidth: in %0.2f kbit/s", GetDeltaData(bw.inData) / 1024.f),
-    8, 8, 12, WHITE);
+  DrawText(TextFormat("Bandwidth: in %0.2f kbit/s",
+                      static_cast<float>(GetDeltaData(bw.inData)) / 1024.f),
+           8, 8, 12, WHITE);
   DrawText(TextFormat("Bandwidth: out %0.2f kbit/s",
-                      GetDeltaData(bw.outData) / 1024.f),
+                      static_cast<float>(GetDeltaData(bw.outData)) / 1024.f),
            8, 20, 12, WHITE);
+  DrawText(TextFormat("%s %s:%u | entities %zu",
+                      handler.connected ? "Connected to" : "Connecting to",
+                      endpoint.host.c_str(),
+                      static_cast<unsigned>(endpoint.port), entities.size()),
+           8, 32, 12, WHITE);
+  if (handler.connected && entities.empty()) {
+    DrawText("Waiting for world state", 8, 44, 12, LIGHTGRAY);
+  }
   EndDrawing();
 }
 
@@ -225,17 +326,14 @@ static void UpdateBandwidth(float dt, BandwidthAccumulator& accum) {
 }
 
 int main(int argc, const char** argv) {
-  auto bench_options =
-    socketwire_examples::benchmark::ParseOptions(argc, argv, 10131);
+  auto bench_options = socketwire_examples::benchmark::ParseOptions(
+    argc, argv, kDefaultShipSwarmPort);
   socketwire_examples::benchmark::MetricsCollector metrics(
     bench_options, "ship-swarm", "socketwire", "client");
   socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
-  const std::uint16_t connect_port =
-    bench_options.enabled
-      ? bench_options.port
-      : socketwire_examples::PortFromArgsOrEnv(
-          argc, argv, 1, "SOCKETWIRE_SHIP_SWARM_PORT", 10131);
+  const ClientEndpoint endpoint =
+    ResolveClientEndpoint(argc, argv, bench_options);
 
   auto socket = socketwire_examples::CreateUdpSocket(0);
   if (socket == nullptr) return 1;
@@ -245,8 +343,10 @@ int main(int argc, const char** argv) {
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.SetHandler(&handler);
-  connection.Connect(socketwire_examples::ResolveAddress(bench_options.host),
-                     connect_port);
+  connection.Connect(socketwire_examples::ResolveAddress(endpoint.host),
+                     endpoint.port);
+  std::println("ship-swarm client connecting to {}:{}", endpoint.host,
+               static_cast<unsigned>(endpoint.port));
 
   int width = 600;
   int height = 600;
@@ -264,8 +364,10 @@ int main(int argc, const char** argv) {
   }
 
   Camera2D camera = {{0.f, 0.f}, {0.f, 0.f}, 0.f, 1.f};
-  camera.offset = Vector2{width * 0.5f, height * 0.5f};
-  camera.zoom = 10.f;
+  camera.offset = Vector2{static_cast<float>(width) * 0.5f,
+                          static_cast<float>(height) * 0.5f};
+  camera.zoom =
+    static_cast<float>(std::min(width, height)) / (2.f * kWorldSize) * 0.8f;
 
   if (!bench_options.enabled) SetTargetFPS(60);
 
@@ -290,11 +392,15 @@ int main(int argc, const char** argv) {
     const auto update_end = std::chrono::steady_clock::now();
     if (!bench_options.enabled) {
       UpdateCamera(camera);
-      DrawWorld(camera, bandwidth_accumulator);
+      DrawWorld(camera, bandwidth_accumulator, endpoint, handler);
     } else {
       metrics.SetConnectedClients(handler.connected ? 1 : 0);
       metrics.SetNetworkStats(
         socketwire_examples::benchmark::StatsFromConnection(connection));
+      socketwire_examples::benchmark::GameMetrics game_metrics;
+      game_metrics.joinSuccessCount = my_entity != kInvalidEntity ? 1 : 0;
+      game_metrics.entityCountClient = entities.size();
+      metrics.SetGameMetrics(game_metrics);
       metrics.RecordUpdateMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(update_end -

@@ -170,7 +170,7 @@ void BroadcastSnapshot() {
   auto snapshot = projectile_arena::MakeSnapshot(MakeSnapshot());
   for (auto& entry : players) {
     auto& player = entry.second;
-    if (player.client->connection->SendUnsequenced(1, snapshot)) {
+    if (player.client->connection->SendUnreliable(1, snapshot)) {
       socketwire_examples::benchmark::RecordPayloadTx(snapshot.GetSizeBytes());
     }
   }

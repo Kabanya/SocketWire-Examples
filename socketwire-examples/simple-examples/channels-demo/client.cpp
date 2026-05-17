@@ -43,9 +43,8 @@ class ClientHandler final : public IReliableConnectionHandler {
       const auto y = stream.TryRead<float>();
       if (tick && x && y) {
         ++snapshots;
-        std::println(
-          "channel {} unsequenced snapshot tick={} x={:.2f} y={:.2f}", channel,
-          *tick, *x, *y);
+        std::println("channel {} unreliable snapshot tick={} x={:.2f} y={:.2f}",
+                     channel, *tick, *x, *y);
       }
     }
   }

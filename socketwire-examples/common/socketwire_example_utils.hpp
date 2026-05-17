@@ -17,10 +17,9 @@
 
 namespace socketwire_examples {
 
-inline std::optional<std::uint16_t> ParsePort(const char* text) {
-  if (text == nullptr || *text == '\0') return std::nullopt;
+inline std::optional<std::uint16_t> ParsePort(std::string_view view) {
+  if (view.empty()) return std::nullopt;
 
-  const std::string_view view(text);
   std::uint64_t value = 0;
   const auto [end, error] =
     std::from_chars(view.data(), view.data() + view.size(), value);
@@ -30,6 +29,11 @@ inline std::optional<std::uint16_t> ParsePort(const char* text) {
   }
 
   return static_cast<std::uint16_t>(value);
+}
+
+inline std::optional<std::uint16_t> ParsePort(const char* text) {
+  if (text == nullptr) return std::nullopt;
+  return ParsePort(std::string_view(text));
 }
 
 inline std::uint16_t PortFromArgsOrEnv(int argc, const char** argv,
@@ -62,6 +66,23 @@ inline std::uint16_t PortFromArgsOrEnv(int argc, const char** argv,
   }
 
   return port;
+}
+
+inline bool HasCommandLineOption(int argc, const char** argv,
+                                 std::string_view option) {
+  if (argv == nullptr || option.empty()) return false;
+
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i] != nullptr && std::string_view(argv[i]) == option) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+inline bool IsCommandLineOption(const char* arg) {
+  return arg != nullptr && arg[0] == '-' && arg[1] != '\0';
 }
 
 inline std::unique_ptr<socketwire::ISocket> CreateUdpSocket(

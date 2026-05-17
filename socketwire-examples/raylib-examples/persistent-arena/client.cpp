@@ -390,7 +390,7 @@ int main(int argc, const char** argv) {
   auto next_join_attempt = std::chrono::steady_clock::now();
 
   auto connect_to = [&](const SocketAddress& address, std::uint16_t port,
-                        const std::string& hostText) {
+                        const std::string& host_text) {
     ReliableConnectionConfig cfg;
     cfg.numChannels = 2;
     state = ClientState{};
@@ -409,7 +409,7 @@ int main(int argc, const char** argv) {
     const auto now = std::chrono::steady_clock::now();
     next_connect_attempt = now + std::chrono::milliseconds(250);
     next_join_attempt = now;
-    std::println("connecting to {}:{}", hostText, static_cast<unsigned>(port));
+    std::println("connecting to {}:{}", host_text, static_cast<unsigned>(port));
     return true;
   };
 
@@ -477,7 +477,7 @@ int main(int argc, const char** argv) {
                       : ((IsKeyDown(KEY_S) ? 1.0f : 0.0f) -
                          (IsKeyDown(KEY_W) ? 1.0f : 0.0f));
       auto input_packet = persistent_arena::MakeInput(input);
-      if (connection->SendUnsequenced(1, input_packet)) {
+      if (connection->SendUnreliable(1, input_packet)) {
         socketwire_examples::benchmark::RecordPayloadTx(
           input_packet.GetSizeBytes());
         ++state.appSentPackets;

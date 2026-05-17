@@ -9,7 +9,7 @@ namespace socketwire {
 class ReliableConnection;
 }
 
-enum MessageType : std::uint8_t {
+enum class MessageType : std::uint8_t {
   kEClientToServerJoin = 0,
   kEServerToClientNewEntity,
   kEServerToClientSetControlledEntity,
@@ -33,7 +33,8 @@ void SendSnapshot(socketwire::ReliableConnection* connection, std::uint16_t eid,
 
 void SendEntityDevoured(socketwire::ReliableConnection* connection,
                         std::uint16_t devoured_eid, std::uint16_t devourer_eid,
-                        float new_size, float new_x, float new_y);
+                        float devourer_new_size, float devoured_new_size,
+                        float new_x, float new_y);
 void SendScoreUpdate(socketwire::ReliableConnection* connection,
                      std::uint16_t eid, int score);
 void SendGameOver(socketwire::ReliableConnection* connection,
@@ -55,8 +56,10 @@ void DeserializeScoreUpdate(const void* data, std::size_t size,
                             std::uint16_t& eid, int& score);
 void DeserializeEntityDevoured(const void* data, std::size_t size,
                                std::uint16_t& devoured_eid,
-                               std::uint16_t& devourer_eid, float& new_size,
-                               float& new_x, float& new_y);
+                               std::uint16_t& devourer_eid,
+                               float& devourer_new_size,
+                               float& devoured_new_size, float& new_x,
+                               float& new_y);
 void DeserializeGameOver(const void* data, std::size_t size,
                          std::uint16_t& winner_eid, int& winner_score);
 void DeserializeGameTime(const void* data, std::size_t size,

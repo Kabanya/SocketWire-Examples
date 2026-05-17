@@ -20,16 +20,20 @@ bool SendEcho(socketwire_examples::ServerConnectionHub::Client& client,
   const std::size_t copy_size = std::min(size, payload.size());
   std::memcpy(payload.data(), data, copy_size);
   payload[4] = static_cast<std::uint8_t>(netbench::PacketKind::Echo);
+  const bool acked =
+    (header.flags & (netbench::FlagReliable | netbench::FlagUnsequenced)) != 0;
+  const std::uint8_t send_channel = acked ? 0 : header.channel;
+  payload[6] = send_channel;
 
   if ((header.flags & netbench::FlagReliable) != 0) {
-    return client.connection->SendReliable(header.channel, payload.data(),
+    return client.connection->SendReliable(send_channel, payload.data(),
                                            copy_size);
   }
   if ((header.flags & netbench::FlagUnsequenced) != 0) {
-    return client.connection->SendUnsequenced(header.channel, payload.data(),
+    return client.connection->SendUnsequenced(send_channel, payload.data(),
                                               copy_size);
   }
-  return client.connection->SendUnreliable(header.channel, payload.data(),
+  return client.connection->SendUnreliable(send_channel, payload.data(),
                                            copy_size);
 }
 
@@ -82,9 +86,9 @@ int main(int argc, const char** argv) {
     [&](auto& client, std::uint8_t, const void* data, std::size_t size, bool) {
       netbench::PacketHeader header;
       if (!netbench::parseHeader(data, size, header)) return;
-      if (netbench::measured(header)) stats.noteRx(size);
-      if (sendEcho(client, header, data, size) && netbench::measured(header)) {
-        stats.noteTx(size, false);
+      if (netbench::measured(header)) stats.noteRxHeader(header, size);
+      if (SendEcho(client, header, data, size) && netbench::measured(header)) {
+        stats.noteTxHeader(header, size, false);
       }
     });
 

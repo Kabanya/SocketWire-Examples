@@ -51,8 +51,10 @@ static void SendPlayerList(
 
 static void BroadcastNewPlayer(const Player& new_player,
                                const std::vector<Player>& players) {
-  const std::string msg =
-    "NEWPLAYER " + std::to_string(new_player.id) + " " + new_player.name;
+  std::stringstream ss;
+  ss << "NEWPLAYER " << new_player.id << " " << new_player.x << " "
+     << new_player.y << " " << new_player.ping << " " << new_player.name;
+  const std::string msg = ss.str();
   for (const auto& player : players) {
     if (player.id != new_player.id && player.client != nullptr) {
       SendText(*player.client, msg);
@@ -93,11 +95,16 @@ int main(int argc, const char** argv) {
     bench_options, "lobby-dots", "socketwire", "game-server");
   socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
+  const bool has_game_port_option =
+    socketwire_examples::HasCommandLineOption(argc, argv, "--game-port");
+  const int game_port_arg_index =
+    argc > 1 && !socketwire_examples::IsCommandLineOption(argv[1]) ? 1 : 0;
   const std::uint16_t listen_port =
-    bench_options.enabled
+    bench_options.enabled || has_game_port_option
       ? bench_options.gamePort
       : socketwire_examples::PortFromArgsOrEnv(
-          argc, argv, 1, "SOCKETWIRE_LOBBY_DOTS_GAME_PORT", 10888);
+          argc, argv, game_port_arg_index, "SOCKETWIRE_LOBBY_DOTS_GAME_PORT",
+          10888);
 
   auto socket = socketwire_examples::CreateUdpSocket(listen_port);
   if (socket == nullptr) return 1;
@@ -122,10 +129,9 @@ int main(int argc, const char** argv) {
 
     const std::string welcome_msg =
       "WELCOME " + std::to_string(new_player.id) + " " + new_player.name;
+    players.push_back(new_player);
     SendText(client, welcome_msg);
     SendPlayerList(players, client);
-
-    players.push_back(new_player);
     BroadcastNewPlayer(new_player, players);
   });
 

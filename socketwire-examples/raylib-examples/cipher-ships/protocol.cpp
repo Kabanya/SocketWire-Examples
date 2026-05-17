@@ -10,6 +10,32 @@
 
 static std::uint32_t xor_cipher_key = 0;
 
+namespace {
+
+void WriteEntity(socketwire::BitStream& bs, const Entity& ent) {
+  bs.Write<std::uint32_t>(ent.color);
+  bs.Write<float>(ent.x);
+  bs.Write<float>(ent.y);
+  bs.Write<float>(ent.speed);
+  bs.Write<float>(ent.ori);
+  bs.Write<float>(ent.thr);
+  bs.Write<float>(ent.steer);
+  bs.Write<std::uint16_t>(ent.eid);
+}
+
+void ReadEntity(socketwire::BitStream& bs, Entity& ent) {
+  bs.Read<std::uint32_t>(ent.color);
+  bs.Read<float>(ent.x);
+  bs.Read<float>(ent.y);
+  bs.Read<float>(ent.speed);
+  bs.Read<float>(ent.ori);
+  bs.Read<float>(ent.thr);
+  bs.Read<float>(ent.steer);
+  bs.Read<std::uint16_t>(ent.eid);
+}
+
+}  // namespace
+
 static std::mt19937& RandomGenerator() {
   static std::random_device random_device;
   static std::mt19937 generator(random_device());
@@ -23,9 +49,14 @@ static std::vector<std::uint8_t> CopyStream(const socketwire::BitStream& bs) {
 
 static void XorPacketData(std::vector<std::uint8_t>& packet,
                           std::uint32_t key) {
-  auto* key_ptr = reinterpret_cast<std::uint8_t*>(&key);
+  const std::uint8_t key_bytes[sizeof(std::uint32_t)] = {
+    static_cast<std::uint8_t>((key >> 24) & 0xffu),
+    static_cast<std::uint8_t>((key >> 16) & 0xffu),
+    static_cast<std::uint8_t>((key >> 8) & 0xffu),
+    static_cast<std::uint8_t>(key & 0xffu),
+  };
   for (std::size_t i = 1; i < packet.size(); ++i) {
-    packet[i] ^= key_ptr[(i - 1) % sizeof(std::uint32_t)];
+    packet[i] ^= key_bytes[(i - 1) % sizeof(key_bytes)];
   }
 }
 
@@ -51,7 +82,7 @@ void SendNewEntity(socketwire::ReliableConnection* connection,
                    const Entity& ent) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(kEServerToClientNewEntity);
-  bs.WriteBytes(&ent, sizeof(Entity));
+  WriteEntity(bs, ent);
   if (connection->SendReliable(0, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
@@ -88,7 +119,7 @@ void SendEntityInput(socketwire::ReliableConnection* connection,
   std::vector<std::uint8_t> packet = CopyStream(bs);
   FuzzPacketData(packet);
   XorPacketData(packet, xor_cipher_key);
-  if (connection->SendUnsequenced(1, packet.data(), packet.size())) {
+  if (connection->SendUnreliable(1, packet.data(), packet.size())) {
     socketwire_examples::benchmark::RecordPayloadTx(packet.size());
   }
 }
@@ -106,7 +137,7 @@ void SendSnapshot(socketwire::ReliableConnection* connection, std::uint16_t eid,
   bs.Write<std::uint16_t>(y_packed);
   bs.Write<std::uint8_t>(ori_packed);
 
-  if (connection->SendUnsequenced(1, bs)) {
+  if (connection->SendUnreliable(1, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
 }
@@ -120,7 +151,7 @@ void DeserializeNewEntity(const void* data, std::size_t size, Entity& ent) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
-  bs.ReadBytes(&ent, sizeof(Entity));
+  ReadEntity(bs, ent);
 }
 
 void DeserializeSetControlledEntity(const void* data, std::size_t size,

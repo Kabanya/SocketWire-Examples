@@ -193,10 +193,7 @@ class ServerConnectionHub {
   }
 
   static bool IsConnectPacket(const void* data, std::size_t size) {
-    if (size < 1) return false;
-    const auto packet_type = *static_cast<const std::uint8_t*>(data);
-    return packet_type ==
-           static_cast<std::uint8_t>(socketwire::PacketType::kConnect);
+    return socketwire::ReliableConnection::IsConnectPacket(data, size);
   }
 
   static ConnectionKey MakeKey(const socketwire::SocketAddress& address,

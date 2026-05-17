@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <chrono>
-#include <cmath>
 #include <cstdio>
 #include <thread>
 #include <vector>
@@ -132,7 +131,8 @@ int main(int argc, const char** argv) {
   }
 
   Camera2D camera = {{0.f, 0.f}, {0.f, 0.f}, 0.f, 1.f};
-  camera.offset = Vector2{width * 0.5f, height * 0.5f};
+  camera.offset = Vector2{static_cast<float>(width) * 0.5f,
+                          static_cast<float>(height) * 0.5f};
   camera.zoom = 10.f;
 
   if (!bench_options.enabled) SetTargetFPS(60);

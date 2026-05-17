@@ -18,6 +18,19 @@ static std::map<std::uint16_t,
                 socketwire_examples::ServerConnectionHub::Client*>
   controlled_map;
 
+constexpr float kMinEntitySize = 5.f;
+constexpr float kMaxEntitySize = 100.f;
+constexpr float kSpawnPadding = 25.f;
+constexpr float kEatCooldownSeconds = 0.25f;
+constexpr float kRespawnEatCooldownSeconds = 0.75f;
+constexpr float kMinEatSizeDelta = 1.f;
+constexpr int kFreeSpawnAttempts = 32;
+
+struct SpawnPoint {
+  float x = 0.f;
+  float y = 0.f;
+};
+
 static std::mt19937& RandomGenerator() {
   static std::random_device random_device;
   static std::mt19937 generator(random_device());
@@ -33,6 +46,53 @@ static float RandomSpawn(const float max_size = 10.f) {
   return static_cast<float>(RandomInt(-50, 49)) * max_size;
 }
 
+static float RandomInitialSize() {
+  return kMinEntitySize + static_cast<float>(RandomInt(0, 5));
+}
+
+static float RandomRespawnSize() {
+  return kMinEntitySize + static_cast<float>(RandomInt(0, 4));
+}
+
+static bool OverlapsExistingEntity(float x, float y, float size,
+                                   const Entity* ignored = nullptr) {
+  for (const Entity& entity : entities) {
+    if (&entity == ignored || entity.size <= 0.f) continue;
+
+    const float dx = x - entity.x;
+    const float dy = y - entity.y;
+    const float min_distance = size + entity.size + kSpawnPadding;
+    if (dx * dx + dy * dy < min_distance * min_distance) return true;
+  }
+  return false;
+}
+
+static SpawnPoint RandomFreeSpawn(float size, const Entity* ignored = nullptr) {
+  SpawnPoint fallback{RandomSpawn(), RandomSpawn()};
+  for (int attempt = 0; attempt < kFreeSpawnAttempts; ++attempt) {
+    const SpawnPoint spawn{RandomSpawn(), RandomSpawn()};
+    fallback = spawn;
+    if (!OverlapsExistingEntity(spawn.x, spawn.y, size, ignored)) {
+      return spawn;
+    }
+  }
+  return fallback;
+}
+
+static void PickAiTarget(Entity& entity) {
+  entity.targetX = RandomSpawn();
+  entity.targetY = RandomSpawn();
+}
+
+static void RespawnEntity(Entity& entity) {
+  entity.size = RandomRespawnSize();
+  const SpawnPoint spawn = RandomFreeSpawn(entity.size, &entity);
+  entity.x = spawn.x;
+  entity.y = spawn.y;
+  entity.eatCooldownSeconds = kRespawnEatCooldownSeconds;
+  if (entity.serverControlled) PickAiTarget(entity);
+}
+
 static std::uint16_t CreateRandomEntity() {
   const auto new_eid = static_cast<std::uint16_t>(entities.size());
   const std::uint32_t color =
@@ -42,14 +102,15 @@ static std::uint16_t CreateRandomEntity() {
 
   Entity ent;
   ent.color = color;
-  ent.x = RandomSpawn();
-  ent.y = RandomSpawn();
   ent.eid = new_eid;
   ent.serverControlled = false;
-  ent.targetX = 0.f;
-  ent.targetY = 0.f;
-  ent.size = 5.f + static_cast<float>(RandomInt(0, 5));
+  ent.size = RandomInitialSize();
+  const SpawnPoint spawn = RandomFreeSpawn(ent.size);
+  ent.x = spawn.x;
+  ent.y = spawn.y;
+  PickAiTarget(ent);
   ent.score = 0;
+  ent.eatCooldownSeconds = kRespawnEatCooldownSeconds;
 
   entities.push_back(ent);
   return new_eid;
@@ -105,6 +166,16 @@ static void SendToAll(socketwire_examples::ServerConnectionHub& hub,
   }
 }
 
+static void BroadcastScoreUpdate(socketwire_examples::ServerConnectionHub& hub,
+                                 std::uint16_t eid, int score) {
+  for (auto* client : hub.Clients()) {
+    if (client != nullptr && client->connection != nullptr &&
+        client->connection->IsConnected()) {
+      SendScoreUpdate(client->connection.get(), eid, score);
+    }
+  }
+}
+
 int main(int argc, const char** argv) {
   auto bench_options =
     socketwire_examples::benchmark::ParseOptions(argc, argv, 10131);
@@ -143,7 +214,7 @@ int main(int argc, const char** argv) {
     [&](auto& client, std::uint8_t, const void* data, std::size_t size, bool) {
       socketwire_examples::benchmark::RecordPayloadRx(size);
       switch (GetPacketType(data, size)) {
-        case kEClientToServerJoin: {
+        case MessageType::kEClientToServerJoin: {
           if (!created_ai_entities) {
             for (int i = 0; i < num_ai; ++i) {
               const std::uint16_t eid = CreateRandomEntity();
@@ -156,16 +227,16 @@ int main(int argc, const char** argv) {
           OnJoin(hub, client);
           break;
         }
-        case kEClientToServerState:
+        case MessageType::kEClientToServerState:
           OnState(data, size);
           break;
-        case kEServerToClientNewEntity:
-        case kEServerToClientSetControlledEntity:
-        case kEServerToClientSnapshot:
-        case kEServerToClientEntityDevoured:
-        case kEServerToClientScoreUpdate:
-        case kEServerToClientGameTime:
-        case kEServerToClientGameOver:
+        case MessageType::kEServerToClientNewEntity:
+        case MessageType::kEServerToClientSetControlledEntity:
+        case MessageType::kEServerToClientSnapshot:
+        case MessageType::kEServerToClientEntityDevoured:
+        case MessageType::kEServerToClientScoreUpdate:
+        case MessageType::kEServerToClientGameTime:
+        case MessageType::kEServerToClientGameOver:
           break;
       }
     });
@@ -175,15 +246,20 @@ int main(int argc, const char** argv) {
     if (bench_options.enabled && metrics.Done()) break;
     const auto frame_start = std::chrono::steady_clock::now();
     const auto cur_time = std::chrono::steady_clock::now();
-    const float dt = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       cur_time - last_time)
-                       .count() *
-                     0.001f;
+    const float dt =
+      static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                           cur_time - last_time)
+                           .count()) *
+      0.001f;
     last_time = cur_time;
 
     const auto update_start = std::chrono::steady_clock::now();
     hub.Poll();
     hub.Update();
+
+    for (Entity& e : entities) {
+      e.eatCooldownSeconds = std::max(0.f, e.eatCooldownSeconds - dt);
+    }
 
     if (!game_over && created_ai_entities) {
       const auto time_since_update =
@@ -221,14 +297,14 @@ int main(int argc, const char** argv) {
       if (e.serverControlled) {
         const float diff_x = e.targetX - e.x;
         const float diff_y = e.targetY - e.y;
-        const float dir_x = diff_x > 0.f ? 1.f : -1.f;
-        const float dir_y = diff_y > 0.f ? 1.f : -1.f;
+        const float distance = std::sqrt(diff_x * diff_x + diff_y * diff_y);
         constexpr float speed = 50.f;
-        e.x += dir_x * speed * dt;
-        e.y += dir_y * speed * dt;
-        if (std::fabs(diff_x) < 10.f && std::fabs(diff_y) < 10.f) {
-          e.targetX = RandomSpawn();
-          e.targetY = RandomSpawn();
+        if (distance <= 10.f) {
+          PickAiTarget(e);
+        } else if (distance > 0.001f) {
+          const float step = std::min(speed * dt, distance);
+          e.x += (diff_x / distance) * step;
+          e.y += (diff_y / distance) * step;
         }
       }
     }
@@ -244,37 +320,34 @@ int main(int argc, const char** argv) {
             e2.size > 1000.f) {
           continue;
         }
+        if (e1.eatCooldownSeconds > 0.f || e2.eatCooldownSeconds > 0.f) {
+          continue;
+        }
+        if (std::fabs(e1.size - e2.size) < kMinEatSizeDelta) {
+          continue;
+        }
 
         const float dx = e1.x - e2.x;
         const float dy = e1.y - e2.y;
         const float distance = std::sqrt(dx * dx + dy * dy);
 
-        if (distance < (e1.size + e2.size) && e1.size != e2.size &&
-            distance > 0.1f) {
+        if (distance < (e1.size + e2.size) && distance > 0.1f) {
           Entity* devourer = e1.size > e2.size ? &e1 : &e2;
           Entity* devoured = e1.size > e2.size ? &e2 : &e1;
           const float size_gain = devoured->size / 2.f;
 
           if (size_gain > 0.f && size_gain < 50.f) {
-            constexpr float max_size = 100.f;
-            devourer->size = std::min(devourer->size + size_gain, max_size);
-            devoured->size = 5.f + static_cast<float>(RandomInt(0, 4));
+            devourer->size =
+              std::min(devourer->size + size_gain, kMaxEntitySize);
+            devourer->eatCooldownSeconds = kEatCooldownSeconds;
 
-            if (!devoured->serverControlled) devoured->score = 0;
+            RespawnEntity(*devoured);
+            devoured->score = 0;
 
             devourer->score += static_cast<int>(size_gain);
 
-            for (auto* client : hub.Clients()) {
-              if (client == nullptr || client->connection == nullptr ||
-                  !client->connection->IsConnected()) {
-                continue;
-              }
-              SendScoreUpdate(client->connection.get(), devourer->eid,
-                              devourer->score);
-            }
-
-            devoured->x = RandomSpawn();
-            devoured->y = RandomSpawn();
+            BroadcastScoreUpdate(hub, devourer->eid, devourer->score);
+            BroadcastScoreUpdate(hub, devoured->eid, devoured->score);
 
             for (auto* client : hub.Clients()) {
               if (client == nullptr || client->connection == nullptr ||
@@ -282,8 +355,8 @@ int main(int argc, const char** argv) {
                 continue;
               }
               SendEntityDevoured(client->connection.get(), devoured->eid,
-                                 devourer->eid, devourer->size, devoured->x,
-                                 devoured->y);
+                                 devourer->eid, devourer->size, devoured->size,
+                                 devoured->x, devoured->y);
             }
 
             collision_occurred = true;
@@ -299,9 +372,7 @@ int main(int argc, const char** argv) {
             !client->connection->IsConnected()) {
           continue;
         }
-        if (controlled_map[e.eid] != client) {
-          SendSnapshot(client->connection.get(), e.eid, e.x, e.y, e.size);
-        }
+        SendSnapshot(client->connection.get(), e.eid, e.x, e.y, e.size);
       }
     }
     const auto update_end = std::chrono::steady_clock::now();

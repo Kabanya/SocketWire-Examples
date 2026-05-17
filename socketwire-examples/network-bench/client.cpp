@@ -17,27 +17,27 @@ class Handler final : public socketwire::IReliableConnectionHandler {
   void OnDisconnected() override { connected = false; }
   void OnTimeout() override { connected = false; }
 
-  void OnReliableReceived(std::uint8_t, const void* data,
+  void OnReliableReceived(std::uint8_t channel, const void* data,
                           std::size_t size) override {
-    Receive(data, size);
+    Receive(channel, data, size);
   }
 
-  void OnUnreliableReceived(std::uint8_t, const void* data,
+  void OnUnreliableReceived(std::uint8_t channel, const void* data,
                             std::size_t size) override {
-    Receive(data, size);
+    Receive(channel, data, size);
   }
 
   bool connected = false;
 
  private:
-  void Receive(const void* data, std::size_t size) {
+  void Receive(std::uint8_t channel, const void* data, std::size_t size) {
     netbench::PacketHeader header;
     if (!netbench::parseHeader(data, size, header) ||
         !netbench::measured(header)) {
       return;
     }
-    stats_.noteRx(size);
-    stats_.noteEcho(header, netbench::nowUs());
+    stats_.noteRxHeader(header, size);
+    stats_.noteEcho(header, netbench::nowUs(), channel);
   }
 
   netbench::AppStats& stats_;
@@ -65,7 +65,14 @@ bool SendPayload(socketwire::ReliableConnection& connection,
     sent = connection.SendUnreliable(stream.channel, payload.data(), size);
   }
 
-  if (sent && measured) stats.noteTx(size, true);
+  if (sent && measured) {
+    netbench::PacketHeader header;
+    if (netbench::parseHeader(payload.data(), size, header)) {
+      stats.noteTxHeader(header, size, true);
+    } else {
+      stats.noteCorruptedDelivery();
+    }
+  }
   return sent;
 }
 
@@ -135,7 +142,7 @@ int main(int argc, const char** argv) {
     profile.unreliableBytes,
     static_cast<std::uint8_t>(profile.unsequenced ? netbench::FlagUnsequenced
                                                   : 0),
-    1,
+    static_cast<std::uint8_t>(profile.unsequenced ? 0 : 1),
     0,
     netbench::nowUs(),
   };

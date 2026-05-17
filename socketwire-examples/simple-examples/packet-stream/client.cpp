@@ -71,7 +71,7 @@ int main(int argc, const char** argv) {
             .count() > 100) {
         last_send = now;
         std::string const packet = "packet#" + std::to_string(counter++);
-        connection.SendReliable(1, packet.c_str(), packet.size() + 1);
+        connection.SendReliable(0, packet.c_str(), packet.size() + 1);
       }
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));

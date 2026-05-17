@@ -87,10 +87,10 @@ int main() {
   }
 
   std::array<std::uint8_t, 16> parsed6{};
-  std::uint32_t scopeId = 0;
-  if (SocketConstants::ParseIPv6("::1", parsed6, scopeId)) {
+  std::uint32_t scope_id = 0;
+  if (SocketConstants::ParseIPv6("::1", parsed6, scope_id)) {
     std::println("parseIPv6(\"::1\") -> {}",
-                 SocketConstants::FormatIPv6String(parsed6, scopeId));
+                 SocketConstants::FormatIPv6String(parsed6, scope_id));
   }
 
   if (const auto address = SocketConstants::TryFromString("192.168.10.42")) {

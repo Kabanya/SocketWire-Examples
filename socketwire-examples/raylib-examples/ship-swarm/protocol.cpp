@@ -7,6 +7,38 @@
 #include "quantisation.h"
 #include "reliable_connection.hpp"
 
+namespace {
+
+void WriteEntity(socketwire::BitStream& bs, const Entity& ent) {
+  bs.Write<std::uint32_t>(ent.color);
+  bs.Write<bool>(ent.serverControlled);
+  bs.Write<float>(ent.x);
+  bs.Write<float>(ent.y);
+  bs.Write<float>(ent.vx);
+  bs.Write<float>(ent.vy);
+  bs.Write<float>(ent.ori);
+  bs.Write<float>(ent.omega);
+  bs.Write<float>(ent.thr);
+  bs.Write<float>(ent.steer);
+  bs.Write<std::uint16_t>(ent.eid);
+}
+
+void ReadEntity(socketwire::BitStream& bs, Entity& ent) {
+  bs.Read<std::uint32_t>(ent.color);
+  bs.Read<bool>(ent.serverControlled);
+  bs.Read<float>(ent.x);
+  bs.Read<float>(ent.y);
+  bs.Read<float>(ent.vx);
+  bs.Read<float>(ent.vy);
+  bs.Read<float>(ent.ori);
+  bs.Read<float>(ent.omega);
+  bs.Read<float>(ent.thr);
+  bs.Read<float>(ent.steer);
+  bs.Read<std::uint16_t>(ent.eid);
+}
+
+}  // namespace
+
 void SendJoin(socketwire::ReliableConnection* connection) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(kEClientToServerJoin);
@@ -19,7 +51,7 @@ void SendNewEntity(socketwire::ReliableConnection* connection,
                    const Entity& ent) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(kEServerToClientNewEntity);
-  bs.WriteBytes(&ent, sizeof(Entity));
+  WriteEntity(bs, ent);
   if (connection->SendReliable(0, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
@@ -41,13 +73,13 @@ void SendEntityInput(socketwire::ReliableConnection* connection,
   bs.Write<std::uint8_t>(kEClientToServerInput);
   bs.Write<std::uint16_t>(eid);
 
-  const float4bitsQuantized thr_packed(thr, -1.f, 1.f);
-  const float4bitsQuantized steer_packed(steer, -1.f, 1.f);
+  const Float4bitsQuantized thr_packed(thr, -1.f, 1.f);
+  const Float4bitsQuantized steer_packed(steer, -1.f, 1.f);
   const auto thr_steer_packed = static_cast<std::uint8_t>(
     (thr_packed.packedVal << 4) | steer_packed.packedVal);
   bs.Write<std::uint8_t>(thr_steer_packed);
 
-  if (connection->SendUnsequenced(1, bs)) {
+  if (connection->SendUnreliable(1, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
 }
@@ -68,7 +100,7 @@ void SendSnapshot(socketwire::ReliableConnection* connection, std::uint16_t eid,
   bs.Write<std::uint16_t>(y_packed.packedVal);
   bs.Write<std::uint8_t>(ori_packed);
 
-  if (connection->SendUnsequenced(1, bs)) {
+  if (connection->SendUnreliable(1, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
 }
@@ -78,7 +110,7 @@ void SendTimeMsec(socketwire::ReliableConnection* connection,
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(kEServerToClientTimeMsec);
   bs.Write<std::uint32_t>(time_msec);
-  if (connection->SendReliable(0, bs)) {
+  if (connection->SendUnreliable(0, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
 }
@@ -92,7 +124,7 @@ void DeserializeNewEntity(const void* data, std::size_t size, Entity& ent) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
   bs.Read<std::uint8_t>(type);
-  bs.ReadBytes(&ent, sizeof(Entity));
+  ReadEntity(bs, ent);
 }
 
 void DeserializeSetControlledEntity(const void* data, std::size_t size,
@@ -115,8 +147,8 @@ void DeserializeEntityInput(const void* data, std::size_t size,
 
   static const auto kNeutralPackedValue =
     PackFloat<std::uint8_t>(0.f, -1.f, 1.f, 4);
-  float4bitsQuantized thr_packed(thr_steer_packed >> 4);
-  float4bitsQuantized steer_packed(thr_steer_packed & 0x0f);
+  Float4bitsQuantized thr_packed(thr_steer_packed >> 4);
+  Float4bitsQuantized steer_packed(thr_steer_packed & 0x0f);
   thr = thr_packed.packedVal == kNeutralPackedValue
           ? 0.f
           : thr_packed.Unpack(-1.f, 1.f);

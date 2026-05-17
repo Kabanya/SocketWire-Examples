@@ -50,9 +50,9 @@ int main() {
 
   std::cout << "\n\nTest 4: Quantized Floats: \n" << '\n';
   float const floats[] = {0.0f, 2.5f, 5.0f, 7.75f, 10.0f};
-  for (float i : floats) {
-    stream.WriteQuantizedFloat(i, 0.0f, 10.0f, 8);
-    std::cout << "Written quantized float: " << i << '\n';
+  for (const float value : floats) {
+    stream.WriteQuantizedFloat(value, 0.0f, 10.0f, 8);
+    std::cout << "Written quantized float: " << value << '\n';
   }
   std::cout << "Final size: " << stream.GetSizeBytes() << " bytes" << '\n';
 
@@ -83,8 +83,8 @@ int main() {
   for (int i = 0; i < 5; i++) std::cout << stream.ReadBit() << " ";
   std::cout << '\n';
 
-  std::int32_t r_bits8 = stream.ReadBits(8);
-  std::int32_t r_bits4 = stream.ReadBits(4);
+  std::uint32_t r_bits8 = stream.ReadBits(8);
+  std::uint32_t r_bits4 = stream.ReadBits(4);
   std::cout << "Read 8 bits: " << r_bits8 << ", 4 bits: " << r_bits4 << '\n';
 
   std::cout << "Read quantized floats: ";

@@ -172,10 +172,11 @@ int main(int argc, const char** argv) {
     if (bench_options.enabled && metrics.Done()) break;
     const auto frame_start = std::chrono::steady_clock::now();
     const auto cur_time = std::chrono::steady_clock::now();
-    const float dt = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       cur_time - last_time)
-                       .count() *
-                     0.001f;
+    const float dt =
+      static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                           cur_time - last_time)
+                           .count()) *
+      0.001f;
     last_time = cur_time;
 
     const auto update_start = std::chrono::steady_clock::now();

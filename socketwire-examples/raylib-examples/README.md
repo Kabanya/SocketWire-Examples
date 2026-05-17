@@ -28,6 +28,10 @@ Client/server demos should be run from two terminals. Start the server first:
 ./build/bin/ship-swarm-server
 ./build/bin/ship-swarm-client
 
+# LAN / custom endpoint:
+./build/bin/ship-swarm-server 10133
+./build/bin/ship-swarm-client --host 192.168.1.50 --port 10133
+
 ./build/bin/cipher-ships-server
 ./build/bin/cipher-ships-client
 
@@ -54,7 +58,7 @@ Client/server demos should be run from two terminals. Start the server first:
 | `lobby-dots` lobby | `10887` |
 | `lobby-dots` game server | `10888` |
 | `prediction-ships` | `10131` |
-| `ship-swarm` | `10131` |
+| `ship-swarm` | `10133` |
 | `cipher-ships` | `10131` |
 | `projectile-arena` | `53477` |
 | `persistent-arena` | `53478` |
@@ -62,7 +66,8 @@ Client/server demos should be run from two terminals. Start the server first:
 Most Raylib client/server demos use loopback by default. `persistent-arena` starts its client on a connection screen so another machine can enter the server host and port.
 
 ## Run Notes
-- Most examples use loopback and port `10131`; start the server first, then the client.
+- Most examples use loopback by default; start the server first, then the client.
+- `ship-swarm` uses UDP port `10133` by default. The client accepts `--host` and `--port`, or positional `host port`, for LAN runs.
 - `lobby-dots` uses lobby port `10887` and game-server port `10888`.
 - In `lobby-dots`, start `lobby-dots-lobby` and `lobby-dots-game-server`, then open `lobby-dots-client`; press Enter in the client window to start the game session.
 - For a LAN `persistent-arena` run, start the server on the machine that owns the world:

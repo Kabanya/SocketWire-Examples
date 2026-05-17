@@ -95,11 +95,12 @@ PlayerState& EnsurePlayer(Client& client) {
   if (it != players.end()) return it->second;
 
   const auto id = next_player_id++;
+  const auto row = static_cast<std::uint16_t>((id - 1) / 6);
   PlayerState player;
   player.id = id;
   player.client = &client;
   player.x = 120.0f + static_cast<float>((id - 1) % 6) * 90.0f;
-  player.y = 140.0f + static_cast<float>((id - 1) / 6) * 80.0f;
+  player.y = 140.0f + static_cast<float>(row) * 80.0f;
   auto inserted = players.emplace(&client, player).first;
   std::println("player {} joined from port {}", id, client.port);
 
@@ -283,7 +284,7 @@ void BroadcastSnapshot() {
   for (auto& entry : players) {
     auto& player = entry.second;
     if (player.client != nullptr && player.client->connection != nullptr) {
-      if (player.client->connection->SendUnsequenced(1, snapshot)) {
+      if (player.client->connection->SendUnreliable(1, snapshot)) {
         socketwire_examples::benchmark::RecordPayloadTx(
           snapshot.GetSizeBytes());
       }

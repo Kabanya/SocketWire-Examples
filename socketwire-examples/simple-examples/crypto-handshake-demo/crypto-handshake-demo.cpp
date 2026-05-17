@@ -76,12 +76,12 @@ int main() {
     return 1;
   }
 
-  const std::string roundTrip(
+  const std::string round_trip(
     reinterpret_cast<const char*>(decrypted.GetData()),
     decrypted.GetSizeBytes());
   std::println("handshake completed; encrypted {} bytes; decrypted='{}'",
-               encrypted.GetSizeBytes(), roundTrip);
-  return roundTrip == plain ? 0 : 1;
+               encrypted.GetSizeBytes(), round_trip);
+  return round_trip == plain ? 0 : 1;
 #else
   std::printf(
     "libsodium headers were not available when SocketWire was built\n");

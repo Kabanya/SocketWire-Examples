@@ -49,7 +49,7 @@ void SendEntityInput(socketwire::ReliableConnection* connection,
   bs.Write<std::uint16_t>(eid);
   bs.Write<float>(thr);
   bs.Write<float>(steer);
-  if (connection->SendUnsequenced(1, bs)) {
+  if (connection->SendUnreliable(1, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
 }
@@ -72,7 +72,7 @@ void SendSnapshot(socketwire::ReliableConnection* connection, std::uint16_t eid,
   bs.Write<float>(omega);
   bs.Write<std::uint64_t>(timestamp_ms);
   bs.Write<std::uint32_t>(frame_number);
-  if (connection->SendUnsequenced(1, bs)) {
+  if (connection->SendUnreliable(1, bs)) {
     socketwire_examples::benchmark::RecordPayloadTx(bs.GetSizeBytes());
   }
 }

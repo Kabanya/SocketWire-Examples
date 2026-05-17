@@ -40,7 +40,7 @@ static void HandlePacket(
     std::println("channel 1 unreliable movement tick={} x={:.2f} y={:.2f}",
                  *tick, *x, *y);
     auto snapshot = channels_demo::MakeSnapshot(*tick, *x, *y);
-    client.connection->SendUnsequenced(1, snapshot);
+    client.connection->SendUnreliable(1, snapshot);
   }
 }
 

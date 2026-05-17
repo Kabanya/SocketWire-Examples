@@ -30,6 +30,35 @@ struct ClientState {
   std::uint16_t pendingGamePort = 0;
 };
 
+static Player* FindPlayer(std::vector<Player>& players, int id) {
+  const auto it = std::ranges::find_if(
+    players, [id](const Player& player) { return player.id == id; });
+  return it == players.end() ? nullptr : &*it;
+}
+
+static void UpsertPlayer(std::vector<Player>& players, const Player& update) {
+  if (Player* player = FindPlayer(players, update.id); player != nullptr) {
+    *player = update;
+    return;
+  }
+
+  players.push_back(update);
+}
+
+static void UpdateLocalPlayer(ClientState& state, float x, float y) {
+  if (state.myPlayerId < 0) return;
+
+  Player update;
+  update.id = state.myPlayerId;
+  update.x = x;
+  update.y = y;
+  if (const Player* player = FindPlayer(state.players, state.myPlayerId);
+      player != nullptr) {
+    update.ping = player->ping;
+  }
+  UpsertPlayer(state.players, update);
+}
+
 static void SendText(socketwire::ReliableConnection& connection,
                      const std::string& text, bool reliable = true) {
   const std::size_t bytes = text.size() + 1;
@@ -152,24 +181,24 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
       float x = 0.f;
       float y = 0.f;
       if (std::sscanf(text.c_str(), "POS %d %f %f", &player_id, &x, &y) == 3) {
-        for (auto& player : state_.players) {
-          if (player.id == player_id) {
-            player.x = x;
-            player.y = y;
-            break;
-          }
+        if (Player* player = FindPlayer(state_.players, player_id);
+            player != nullptr) {
+          player->x = x;
+          player->y = y;
+        } else if (player_id != state_.myPlayerId) {
+          state_.players.push_back(Player{player_id, x, y, 0});
         }
       }
     } else if (text.starts_with("NEWPLAYER")) {
-      int player_id = -1;
-      char player_name[256]{};
-      if (std::sscanf(text.c_str(), "NEWPLAYER %d %255s", &player_id,
-                      player_name) >= 1) {
-        const auto exists = std::ranges::any_of(
-          state_.players,
-          [player_id](const Player& player) { return player.id == player_id; });
-
-        if (!exists) state_.players.push_back(Player{player_id, 0.f, 0.f, 0});
+      std::istringstream ss(text.substr(10));
+      Player player;
+      if (ss >> player.id) {
+        if (!(ss >> player.x >> player.y >> player.ping)) {
+          player.x = 0.f;
+          player.y = 0.f;
+          player.ping = 0;
+        }
+        UpsertPlayer(state_.players, player);
       }
     } else if (text.starts_with("PLAYERLEFT")) {
       int player_id = -1;
@@ -189,16 +218,10 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
         int ping_value = 0;
         std::istringstream ping_stream(token);
         if (ping_stream >> player_id >> ping_value) {
-          bool updated = false;
-          for (auto& player : state_.players) {
-            if (player.id == player_id) {
-              player.ping = ping_value;
-              updated = true;
-              break;
-            }
-          }
-
-          if (!updated && player_id != state_.myPlayerId) {
+          if (Player* player = FindPlayer(state_.players, player_id);
+              player != nullptr) {
+            player->ping = ping_value;
+          } else if (player_id != state_.myPlayerId) {
             state_.players.push_back(Player{player_id, 0.f, 0.f, ping_value});
           }
         }
@@ -214,11 +237,16 @@ int main(int argc, const char** argv) {
     bench_options, "lobby-dots", "socketwire", "client");
   socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
+  const bool has_lobby_port_option =
+    socketwire_examples::HasCommandLineOption(argc, argv, "--lobby-port");
+  const int lobby_port_arg_index =
+    argc > 1 && !socketwire_examples::IsCommandLineOption(argv[1]) ? 1 : 0;
   const std::uint16_t connect_lobby_port =
-    bench_options.enabled
+    bench_options.enabled || has_lobby_port_option
       ? bench_options.lobbyPort
       : socketwire_examples::PortFromArgsOrEnv(
-          argc, argv, 1, "SOCKETWIRE_LOBBY_DOTS_LOBBY_PORT", 10887);
+          argc, argv, lobby_port_arg_index, "SOCKETWIRE_LOBBY_DOTS_LOBBY_PORT",
+          10887);
 
   int width = 800;
   int height = 600;
@@ -343,6 +371,7 @@ int main(int argc, const char** argv) {
     posy += vely * dt;
     velx *= 0.99f;
     vely *= 0.99f;
+    UpdateLocalPlayer(state, posx, posy);
     const auto update_end = std::chrono::steady_clock::now();
 
     if (!bench_options.enabled) {

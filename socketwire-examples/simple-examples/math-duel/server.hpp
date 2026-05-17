@@ -30,10 +30,10 @@ struct MathDuel {
 };
 
 extern std::queue<Client> duel_queue;
-extern std::vector<MathDuel> activeDuels;
+extern std::vector<MathDuel> active_duels;
 
 // Msg & input logic
-std::string client_to_string(const Client& client);
+std::string ClientToString(const Client& client);
 void MsgToAllClients(const std::vector<Client>& clients,
                      const std::string& message);
 void MsgToClient(const Client& client, const std::string& message);

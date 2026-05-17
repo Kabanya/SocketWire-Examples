@@ -50,8 +50,10 @@ static void OnSnapshot(const void* data, std::size_t size) {
   float entity_size = 0.f;
   DeserializeSnapshot(data, size, eid, x, y, entity_size);
   GetEntity(eid, [&](Entity& e) {
-    e.x = x;
-    e.y = y;
+    if (eid != my_entity) {
+      e.x = x;
+      e.y = y;
+    }
     e.size = entity_size;
   });
 }
@@ -59,16 +61,18 @@ static void OnSnapshot(const void* data, std::size_t size) {
 static void OnEntityDevoured(const void* data, std::size_t size) {
   std::uint16_t devoured_eid = kInvalidEntity;
   std::uint16_t devourer_eid = kInvalidEntity;
-  float new_size = 0.f;
+  float devourer_new_size = 0.f;
+  float devoured_new_size = 0.f;
   float new_x = 0.f;
   float new_y = 0.f;
-  DeserializeEntityDevoured(data, size, devoured_eid, devourer_eid, new_size,
-                            new_x, new_y);
+  DeserializeEntityDevoured(data, size, devoured_eid, devourer_eid,
+                            devourer_new_size, devoured_new_size, new_x, new_y);
 
-  GetEntity(devourer_eid, [&](Entity& e) { e.size = new_size; });
+  GetEntity(devourer_eid, [&](Entity& e) { e.size = devourer_new_size; });
   GetEntity(devoured_eid, [&](Entity& e) {
     e.x = new_x;
     e.y = new_y;
+    e.size = devoured_new_size;
   });
 }
 
@@ -124,29 +128,29 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
   static void ProcessPacket([[maybe_unused]] std::uint8_t channel,
                             const void* data, std::size_t size) {
     switch (GetPacketType(data, size)) {
-      case kEServerToClientNewEntity:
+      case MessageType::kEServerToClientNewEntity:
         OnNewEntityPacket(data, size);
         break;
-      case kEServerToClientSetControlledEntity:
+      case MessageType::kEServerToClientSetControlledEntity:
         OnSetControlledEntity(data, size);
         break;
-      case kEServerToClientSnapshot:
+      case MessageType::kEServerToClientSnapshot:
         OnSnapshot(data, size);
         break;
-      case kEServerToClientEntityDevoured:
+      case MessageType::kEServerToClientEntityDevoured:
         OnEntityDevoured(data, size);
         break;
-      case kEServerToClientScoreUpdate:
+      case MessageType::kEServerToClientScoreUpdate:
         OnScoreUpdate(data, size);
         break;
-      case kEServerToClientGameTime:
+      case MessageType::kEServerToClientGameTime:
         OnGameTime(data, size);
         break;
-      case kEServerToClientGameOver:
+      case MessageType::kEServerToClientGameOver:
         OnGameOver(data, size);
         break;
-      case kEClientToServerJoin:
-      case kEClientToServerState:
+      case MessageType::kEClientToServerJoin:
+      case MessageType::kEClientToServerState:
         break;
     }
   }
@@ -193,7 +197,8 @@ int main(int argc, const char** argv) {
   }
 
   Camera2D camera = {{0.f, 0.f}, {0.f, 0.f}, 0.f, 1.f};
-  camera.offset = Vector2{width * 0.5f, height * 0.5f};
+  camera.offset = Vector2{static_cast<float>(width) * 0.5f,
+                          static_cast<float>(height) * 0.5f};
 
   if (!bench_options.enabled) SetTargetFPS(60);
 

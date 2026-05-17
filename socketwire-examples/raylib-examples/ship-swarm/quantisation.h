@@ -30,4 +30,4 @@ struct PackedFloat {
   }
 };
 
-using float4bitsQuantized = PackedFloat<uint8_t, 4>;
+using Float4bitsQuantized = PackedFloat<uint8_t, 4>;

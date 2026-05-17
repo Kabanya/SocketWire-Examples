@@ -12,7 +12,7 @@ Small focused examples for learning one SocketWire feature at a time.
 | `echo` | `echo-server`, `echo-client` | Minimal UDP socket send/receive. |
 | `math-duel` | `math-duel-server`, `math-duel-client` | Console multiplayer flow ported from `MIPT-networked/w1`. |
 | `packet-stream` | `packet-stream-server`, `packet-stream-client` | Reliable connection packet stream ported from `MIPT-networked/w3`. |
-| `channels-demo` | `channels-demo-server`, `channels-demo-client` | Reliable commands on channel 0, unreliable movement and unsequenced snapshots on channel 1. |
+| `channels-demo` | `channels-demo-server`, `channels-demo-client` | Reliable commands on channel 0, unreliable movement and snapshots on channel 1. |
 | `large-message-demo` | `large-message-demo-server`, `large-message-demo-client` | Reliable fragmentation/reassembly for payloads larger than `maxPacketSize`. |
 | `stats-window-demo` | `stats-window-demo-server`, `stats-window-demo-client` | Send window limits, RTT, in-flight count, and packet counters. |
 | `crypto-handshake-demo` | `crypto-handshake-demo` | Minimal crypto handshake and AEAD round trip, with graceful no-libsodium fallback. |

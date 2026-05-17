@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdio>
 #include <map>
+#include <print>
 #include <random>
 #include <thread>
 #include <vector>
@@ -16,6 +17,20 @@ static std::vector<Entity> entities;
 static std::map<std::uint16_t,
                 socketwire_examples::ServerConnectionHub::Client*>
   controlled_map;
+
+static constexpr std::uint16_t kDefaultShipSwarmPort = 10133;
+
+static std::uint16_t ResolveListenPort(
+  int argc, const char** argv,
+  const socketwire_examples::benchmark::Options& bench_options) {
+  if (bench_options.enabled ||
+      socketwire_examples::HasCommandLineOption(argc, argv, "--port")) {
+    return bench_options.port;
+  }
+
+  return socketwire_examples::PortFromArgsOrEnv(
+    argc, argv, 1, "SOCKETWIRE_SHIP_SWARM_PORT", kDefaultShipSwarmPort);
+}
 
 static std::mt19937& RandomGenerator() {
   static std::random_device random_device;
@@ -149,26 +164,33 @@ static void UpdateTime(socketwire_examples::ServerConnectionHub& hub,
 }
 
 int main(int argc, const char** argv) {
-  auto bench_options =
-    socketwire_examples::benchmark::ParseOptions(argc, argv, 10131);
+  auto bench_options = socketwire_examples::benchmark::ParseOptions(
+    argc, argv, kDefaultShipSwarmPort);
   socketwire_examples::benchmark::MetricsCollector metrics(
     bench_options, "ship-swarm", "socketwire", "server");
   socketwire_examples::benchmark::SetActiveCollector(&metrics);
 
   const std::uint16_t listen_port =
-    bench_options.enabled
-      ? bench_options.port
-      : socketwire_examples::PortFromArgsOrEnv(
-          argc, argv, 1, "SOCKETWIRE_SHIP_SWARM_PORT", 10131);
+    ResolveListenPort(argc, argv, bench_options);
 
   auto socket = socketwire_examples::CreateUdpSocket(listen_port);
   if (socket == nullptr) return 1;
+
+  std::println("ship-swarm server listening on UDP port {}",
+               static_cast<unsigned>(listen_port));
 
   socketwire::ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
 
+  hub.SetConnectedCallback([](auto& client) {
+    std::println("client connected from port {}",
+                 static_cast<unsigned>(client.port));
+  });
+
   hub.SetDisconnectedCallback([](auto& client) {
+    std::println("client disconnected from port {}",
+                 static_cast<unsigned>(client.port));
     for (auto& entry : controlled_map) {
       if (entry.second == &client) entry.second = nullptr;
     }
@@ -201,10 +223,11 @@ int main(int argc, const char** argv) {
     if (bench_options.enabled && metrics.Done()) break;
     const auto frame_start = std::chrono::steady_clock::now();
     const auto cur_time = std::chrono::steady_clock::now();
-    const float dt = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       cur_time - last_time)
-                       .count() *
-                     0.001f;
+    const float dt =
+      static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                           cur_time - last_time)
+                           .count()) *
+      0.001f;
     last_time = cur_time;
 
     const auto update_start = std::chrono::steady_clock::now();
@@ -222,6 +245,9 @@ int main(int argc, const char** argv) {
       metrics.SetConnectedClients(static_cast<int>(clients.size()));
       metrics.SetNetworkStats(
         socketwire_examples::benchmark::StatsFromClients(clients));
+      socketwire_examples::benchmark::GameMetrics game_metrics;
+      game_metrics.entityCountServer = entities.size();
+      metrics.SetGameMetrics(game_metrics);
       metrics.RecordUpdateMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(update_end -

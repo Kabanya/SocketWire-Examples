@@ -20,9 +20,9 @@ using namespace socketwire;  // NOLINT
 std::unique_ptr<ISocket> server_socket;
 std::vector<Client> clients;
 std::queue<Client> duel_queue;
-std::vector<MathDuel> activeDuels;
+std::vector<MathDuel> active_duels;
 
-std::string client_to_string(const Client& client) {
+std::string ClientToString(const Client& client) {
   // Convert IPv4 address from host order to dotted decimal
   uint32_t const host_addr = client.addr.ipv4.hostOrderAddress;
   char buf[16];  // INET_ADDRSTRLEN
@@ -113,11 +113,11 @@ void StartMathDuel(const Client& challenger, const Client& opponent,
   duel.active = true;
   duel.solved = false;
 
-  activeDuels.push_back(duel);
+  active_duels.push_back(duel);
 
   std::string const announcement =
-    "MATH DUEL STARTING: " + client_to_string(challenger) + " vs " +
-    client_to_string(opponent);
+    "MATH DUEL STARTING: " + ClientToString(challenger) + " vs " +
+    ClientToString(opponent);
   MsgToAllClients(all_clients, announcement);
 
   std::string const challenge = "MATH DUEL PROBLEM: " + math_problem.problem +
@@ -126,12 +126,12 @@ void StartMathDuel(const Client& challenger, const Client& opponent,
   MsgToClient(opponent, challenge);
 
   std::println("Math duel started between {} and {}, answer: {}",
-               client_to_string(challenger), client_to_string(opponent),
+               ClientToString(challenger), ClientToString(opponent),
                math_problem.answer);
 }
 
 bool IsInDuel(const Client& client, MathDuel** current_duel) {
-  for (auto& duel : activeDuels) {
+  for (auto& duel : active_duels) {
     if (!duel.active || duel.solved) continue;
 
     if ((client.addr.ipv4.hostOrderAddress ==
@@ -207,7 +207,7 @@ void Mathduel(const std::string& message, const Client& current_client,
         MsgToClient(current_client, "You are not in an active math duel!");
       } else {
         if (user_answer == current_duel->answer) {
-          std::string const winner_id = client_to_string(current_client);
+          std::string const winner_id = ClientToString(current_client);
           std::string const announcement =
             "MATH DUEL RESULT: " + winner_id + " won duel with true answer: " +
             std::to_string(current_duel->answer) + "!";
@@ -233,42 +233,42 @@ class ServerHandler : public ISocketEventHandler {
     std::string message;
     stream.Read(message);
 
-    Client currentClient;
-    currentClient.addr = from;
-    currentClient.port = from_port;
-    currentClient.id = client_to_string(currentClient);
+    Client current_client;
+    current_client.addr = from;
+    current_client.port = from_port;
+    current_client.id = ClientToString(current_client);
 
     bool client_exists = false;
     for (const Client& client : clients) {
       if (client.addr.ipv4.hostOrderAddress == from.ipv4.hostOrderAddress &&
           client.port == from_port) {
         client_exists = true;
-        currentClient = client;
+        current_client = client;
         break;
       }
     }
 
     if (!client_exists) {
-      clients.push_back(currentClient);
+      clients.push_back(current_client);
       std::string const welcome_msg =
         "\n/c - message to all users\n/mathduel - challenge someone to a "
         "math duel\n/help - for help";
-      MsgToClient(currentClient, welcome_msg);
+      MsgToClient(current_client, welcome_msg);
     }
 
-    Mathduel(message, currentClient, clients);
+    Mathduel(message, current_client, clients);
 
     if (message.length() > 3 && message.starts_with("/c ")) {
-      std::string const chatMessage = message.substr(3);
-      std::string const senderInfo = client_to_string(currentClient);
+      std::string const chat_message = message.substr(3);
+      std::string const sender_info = ClientToString(current_client);
 
-      std::println("msg from ({}): {}", senderInfo, chatMessage);
+      std::println("msg from ({}): {}", sender_info, chat_message);
       std::string const broadcast_msg =
-        "CHAT (" + senderInfo + "): " + chatMessage;
+        "CHAT (" + sender_info + "): " + chat_message;
       MsgToAllClients(clients, broadcast_msg);
     } else if (message != "/mathduel" &&
                (message.length() <= 5 || !message.starts_with("/ans "))) {
-      std::println("({}) {}", currentClient.id, message);
+      std::println("({}) {}", current_client.id, message);
     }
   }
   void OnSocketError(SocketError error_code) override {
