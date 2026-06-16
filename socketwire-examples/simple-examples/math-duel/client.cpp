@@ -17,29 +17,31 @@ using namespace socketwire;  // NOLINT
 std::unique_ptr<ISocket> client_socket;
 SocketAddress server_addr;
 
-class ClientHandler : public ISocketEventHandler {
- public:
-  void OnDataReceived([[maybe_unused]] const SocketAddress& from,
-                      [[maybe_unused]] std::uint16_t from_port,
-                      const void* data, std::size_t bytes_read) override {
-    if (bytes_read == 0) return;
+void ReceiveMessages() {
+  while (client_socket) {
+    std::uint8_t buffer[4096]{};
+    SocketAddress from{};
+    std::uint16_t from_port = 0;
+    const auto result =
+      client_socket->Receive(buffer, sizeof(buffer), from, from_port);
+    if (result.error == SocketError::kWouldBlock) return;
+    if (result.Failed()) {
+      std::cerr << "Socket error: " << ToString(result.error) << '\n';
+      return;
+    }
+    if (result.bytes <= 0) return;
 
-    BitStream stream(reinterpret_cast<const uint8_t*>(data), bytes_read);
+    BitStream stream(buffer, static_cast<std::size_t>(result.bytes));
     std::string message;
     stream.Read(message);
     std::cout << "\r" << message << "\n>";
     std::cout.flush();
   }
-  void OnSocketError(SocketError error_code) override {
-    std::cerr << "Socket error: " << static_cast<int>(error_code) << '\n';
-  }
-};
+}
 
-void ClientReceiveLoop(ClientHandler& handler) {
+void ClientReceiveLoop() {
   while (true) {
-    if (client_socket) {
-      client_socket->Poll(&handler);
-    }
+    ReceiveMessages();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
@@ -96,8 +98,6 @@ int main(int argc, const char** argv) {
   // Initialize socket factory
   socketwire::InitializeSockets();
 
-  ClientHandler handler;
-
   // Create socket factory and socket
   auto factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
@@ -131,7 +131,7 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  std::thread receive_thread([&handler]() { ClientReceiveLoop(handler); });
+  std::thread receive_thread([]() { ClientReceiveLoop(); });
   receive_thread.detach();
 
   while (true) {

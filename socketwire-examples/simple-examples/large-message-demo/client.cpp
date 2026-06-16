@@ -79,7 +79,7 @@ int main(int argc, const char** argv) {
   bool sent = false;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5)) {
-    connection.Tick();
+    connection.Update();
     if (handler.connected && !sent) {
       const auto payload = large_message_demo::MakePayload();
       auto blob = large_message_demo::MakeBlob(payload);

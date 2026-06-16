@@ -426,7 +426,7 @@ int main(int argc, const char** argv) {
     accumulator += frame_time;
 
     const auto update_start = std::chrono::steady_clock::now();
-    connection.Tick();
+    connection.Update();
     if (handler.connected && !sent_join) {
       SendJoin(&connection);
       sent_join = true;

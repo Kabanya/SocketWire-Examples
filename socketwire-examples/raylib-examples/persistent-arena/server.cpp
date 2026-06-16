@@ -347,7 +347,6 @@ int main(int argc, const char** argv) {
 
   ReliableConnectionConfig cfg;
   cfg.numChannels = 2;
-  cfg.maxHandshakesPerSecond = 0;
 
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
   hub.SetDisconnectedCallback([](auto& client) {

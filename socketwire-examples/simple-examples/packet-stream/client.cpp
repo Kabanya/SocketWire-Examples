@@ -64,7 +64,7 @@ int main(int argc, const char** argv) {
   int counter = 0;
 
   while (true) {
-    connection.Tick();
+    connection.Update();
     if (handler.connected) {
       auto now = std::chrono::steady_clock::now();
       if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_send)

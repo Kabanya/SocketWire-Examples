@@ -19,6 +19,14 @@ CIPHER_SHIPS_PORT ?= 10134
 LOBBY_DOTS_LOBBY_PORT ?= 10887
 LOBBY_DOTS_GAME_PORT ?= 10888
 PROJECTILE_ARENA_PORT ?= 53477
+NETBENCH_PORT ?= 53490
+NETBENCH_CLIENT_COUNTS ?= 1 100 1000 10000 100000 1000000
+NETBENCH_PROFILE ?= flood
+NETBENCH_DURATION_MS ?= 60000
+NETBENCH_WARMUP_MS ?= 5000
+NETBENCH_DRAIN_MS ?= 1000
+NETBENCH_SERVER_EXTRA_MS ?= 60000
+NETBENCH_METRICS ?= $(BUILD_DIR)/netbench/socketwire-stress.jsonl
 
 ifeq ($(JOBS),auto)
 PARALLEL_FLAG := --parallel
@@ -34,7 +42,7 @@ SIMPLE_TARGETS := \
 	channels-demo-server channels-demo-client \
 	large-message-demo-server large-message-demo-client \
 	stats-window-demo-server stats-window-demo-client \
-	crypto-handshake-demo
+	crypto-handshake-demo thread-pool-demo
 
 RAYLIB_TARGETS := \
 	entity-eater-server entity-eater-client \
@@ -44,12 +52,14 @@ RAYLIB_TARGETS := \
 	cipher-ships-server cipher-ships-client \
 	projectile-arena-server projectile-arena-client
 
-EXAMPLE_TARGETS := $(SIMPLE_TARGETS) $(RAYLIB_TARGETS)
+NETWORK_BENCH_TARGETS := netbench-socketwire-server netbench-socketwire-client
+
+EXAMPLE_TARGETS := $(SIMPLE_TARGETS) $(RAYLIB_TARGETS) $(NETWORK_BENCH_TARGETS)
 BUILD_TARGET_ALIASES := $(addprefix build-,$(EXAMPLE_TARGETS)) build-SocketWireTests
 RUN_TARGET_ALIASES := $(addprefix run-,$(EXAMPLE_TARGETS))
 
 SIMPLE_RUN_SPECS := \
-	bitstream-demo constants-demo address-demo safe-bitstream-demo crypto-handshake-demo \
+	bitstream-demo constants-demo address-demo safe-bitstream-demo crypto-handshake-demo thread-pool-demo \
 	echo-server:$(ECHO_PORT) echo-client:$(ECHO_PORT) \
 	math-duel-server:$(MATH_DUEL_PORT) math-duel-client:$(MATH_DUEL_PORT) \
 	packet-stream-server:$(PACKET_STREAM_PORT) packet-stream-client:$(PACKET_STREAM_PORT) \
@@ -73,6 +83,7 @@ RAYLIB_RUN_SPECS := \
 .PHONY: run-echo run-math-duel run-packet-stream run-channels-demo run-large-message-demo run-stats-window-demo
 .PHONY: run-entity-eater run-prediction-ships run-ship-swarm run-cipher-ships run-projectile-arena run-lobby-dots
 .PHONY: run-simple-examples run-raylib-examples run-all-examples
+.PHONY: run-network-bench-sweep
 .PHONY: _run-pair _run-lobby _run-group
 .PHONY: $(BUILD_TARGET_ALIASES) $(RUN_TARGET_ALIASES)
 
@@ -95,6 +106,7 @@ help:
 	@printf '%s\n' '  make run-channels-demo | make run-large-message-demo | make run-stats-window-demo'
 	@printf '%s\n' '  make run-entity-eater | make run-prediction-ships | make run-ship-swarm'
 	@printf '%s\n' '  make run-cipher-ships | make run-projectile-arena | make run-lobby-dots'
+	@printf '%s\n' '  make run-network-bench-sweep'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Run groups:'
 	@printf '%s\n' '  make run-simple-examples'
@@ -170,6 +182,44 @@ run-raylib-examples: build-raylib-examples
 
 run-all-examples: build-examples
 	@$(MAKE) --no-print-directory _run-group RUN_SPECS='$(SIMPLE_RUN_SPECS) $(RAYLIB_RUN_SPECS)'
+
+run-network-bench-sweep: build-netbench-socketwire-server build-netbench-socketwire-client
+	@set +e; \
+	mkdir -p "$$(dirname "$(NETBENCH_METRICS)")"; \
+	: > "$(NETBENCH_METRICS)"; \
+	run=0; \
+	for clients in $(NETBENCH_CLIENT_COUNTS); do \
+		echo "+ network-bench clients=$$clients profile=$(NETBENCH_PROFILE)"; \
+		server_duration=$$(( $(NETBENCH_WARMUP_MS) + $(NETBENCH_DURATION_MS) + $(NETBENCH_DRAIN_MS) + $(NETBENCH_SERVER_EXTRA_MS) )); \
+		"$(BIN_DIR)/netbench-socketwire-server" \
+			--port "$(NETBENCH_PORT)" \
+			--clients "$$clients" \
+			--profile "$(NETBENCH_PROFILE)" \
+			--duration-ms "$$server_duration" \
+			--warmup-ms 0 \
+			--drain-ms 0 \
+			--metrics "$(NETBENCH_METRICS)" \
+			--run "$$run" & \
+		server_pid="$$!"; \
+		sleep "$(RUN_DELAY)"; \
+		"$(BIN_DIR)/netbench-socketwire-client" \
+			--host 127.0.0.1 \
+			--port "$(NETBENCH_PORT)" \
+			--clients "$$clients" \
+			--profile "$(NETBENCH_PROFILE)" \
+			--duration-ms "$(NETBENCH_DURATION_MS)" \
+			--warmup-ms "$(NETBENCH_WARMUP_MS)" \
+			--drain-ms "$(NETBENCH_DRAIN_MS)" \
+			--metrics "$(NETBENCH_METRICS)" \
+			--run "$$run"; \
+		client_status="$$?"; \
+		wait "$$server_pid"; \
+		server_status="$$?"; \
+		if [ "$$client_status" != "0" ] || [ "$$server_status" != "0" ]; then \
+			echo "network-bench clients=$$clients client_status=$$client_status server_status=$$server_status"; \
+		fi; \
+		run=$$((run + 1)); \
+	done
 
 _run-pair:
 	@set -e; \

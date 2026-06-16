@@ -378,7 +378,7 @@ int main(int argc, const char** argv) {
     const auto frame_start = std::chrono::steady_clock::now();
     const float dt = bench_options.enabled ? (1.f / 60.f) : GetFrameTime();
     const auto update_start = std::chrono::steady_clock::now();
-    connection.Tick();
+    connection.Update();
 
     if (handler.connected && !sent_join) {
       SendJoin(&connection);

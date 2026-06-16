@@ -218,7 +218,7 @@ int main(int argc, const char** argv) {
       next_connect_attempt =
         std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
     }
-    connection.Tick();
+    connection.Update();
 
     if (state.connected && !join_sent) {
       auto join = projectile_arena::MakeJoin();

@@ -89,7 +89,7 @@ int main(int argc, const char** argv) {
   std::uint32_t tick = 0;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5)) {
-    connection.Tick();
+    connection.Update();
 
     if (handler.connected && !command_sent) {
       auto command = channels_demo::MakeCommand(1, "open-door");

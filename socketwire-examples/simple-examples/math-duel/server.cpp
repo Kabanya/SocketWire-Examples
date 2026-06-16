@@ -1,5 +1,6 @@
 #include "server.hpp"
 
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -223,58 +224,71 @@ void Mathduel(const std::string& message, const Client& current_client,
   }
 }
 
-class ServerHandler : public ISocketEventHandler {
- public:
-  void OnDataReceived(const SocketAddress& from, std::uint16_t from_port,
-                      const void* data, std::size_t bytes_read) override {
-    if (bytes_read == 0) return;
+void HandlePacket(const SocketAddress& from, std::uint16_t from_port,
+                  const void* data, std::size_t bytes_read) {
+  if (bytes_read == 0) return;
 
-    BitStream stream(reinterpret_cast<const uint8_t*>(data), bytes_read);
-    std::string message;
-    stream.Read(message);
+  BitStream stream(reinterpret_cast<const uint8_t*>(data), bytes_read);
+  std::string message;
+  stream.Read(message);
 
-    Client current_client;
-    current_client.addr = from;
-    current_client.port = from_port;
-    current_client.id = ClientToString(current_client);
+  Client current_client;
+  current_client.addr = from;
+  current_client.port = from_port;
+  current_client.id = ClientToString(current_client);
 
-    bool client_exists = false;
-    for (const Client& client : clients) {
-      if (client.addr.ipv4.hostOrderAddress == from.ipv4.hostOrderAddress &&
-          client.port == from_port) {
-        client_exists = true;
-        current_client = client;
-        break;
-      }
-    }
-
-    if (!client_exists) {
-      clients.push_back(current_client);
-      std::string const welcome_msg =
-        "\n/c - message to all users\n/mathduel - challenge someone to a "
-        "math duel\n/help - for help";
-      MsgToClient(current_client, welcome_msg);
-    }
-
-    Mathduel(message, current_client, clients);
-
-    if (message.length() > 3 && message.starts_with("/c ")) {
-      std::string const chat_message = message.substr(3);
-      std::string const sender_info = ClientToString(current_client);
-
-      std::println("msg from ({}): {}", sender_info, chat_message);
-      std::string const broadcast_msg =
-        "CHAT (" + sender_info + "): " + chat_message;
-      MsgToAllClients(clients, broadcast_msg);
-    } else if (message != "/mathduel" &&
-               (message.length() <= 5 || !message.starts_with("/ans "))) {
-      std::println("({}) {}", current_client.id, message);
+  bool client_exists = false;
+  for (const Client& client : clients) {
+    if (client.addr.ipv4.hostOrderAddress == from.ipv4.hostOrderAddress &&
+        client.port == from_port) {
+      client_exists = true;
+      current_client = client;
+      break;
     }
   }
-  void OnSocketError(SocketError error_code) override {
-    std::cerr << "Socket error: " << static_cast<int>(error_code) << '\n';
+
+  if (!client_exists) {
+    clients.push_back(current_client);
+    std::string const welcome_msg =
+      "\n/c - message to all users\n/mathduel - challenge someone to a "
+      "math duel\n/help - for help";
+    MsgToClient(current_client, welcome_msg);
   }
-};
+
+  Mathduel(message, current_client, clients);
+
+  if (message.length() > 3 && message.starts_with("/c ")) {
+    std::string const chat_message = message.substr(3);
+    std::string const sender_info = ClientToString(current_client);
+
+    std::println("msg from ({}): {}", sender_info, chat_message);
+    std::string const broadcast_msg =
+      "CHAT (" + sender_info + "): " + chat_message;
+    MsgToAllClients(clients, broadcast_msg);
+  } else if (message != "/mathduel" &&
+             (message.length() <= 5 || !message.starts_with("/ans "))) {
+    std::println("({}) {}", current_client.id, message);
+  }
+}
+
+void DrainServerSocket() {
+  while (server_socket) {
+    std::uint8_t buffer[4096]{};
+    SocketAddress from{};
+    std::uint16_t from_port = 0;
+    const auto result =
+      server_socket->Receive(buffer, sizeof(buffer), from, from_port);
+    if (result.error == SocketError::kWouldBlock) return;
+    if (result.Failed()) {
+      std::cerr << "Socket error: " << ToString(result.error) << '\n';
+      return;
+    }
+    if (result.bytes <= 0) return;
+
+    HandlePacket(from, from_port, buffer,
+                 static_cast<std::size_t>(result.bytes));
+  }
+}
 
 int main(int argc, const char** argv) {
   // Initialize socket factory
@@ -282,8 +296,6 @@ int main(int argc, const char** argv) {
 
   const std::uint16_t port = socketwire_examples::PortFromArgsOrEnv(
     argc, argv, 1, "SOCKETWIRE_MATH_DUEL_PORT", 2025);
-
-  ServerHandler handler;
 
   // Create socket factory and socket
   auto factory = SocketFactoryRegistry::GetFactory();
@@ -306,7 +318,7 @@ int main(int argc, const char** argv) {
   std::println("listening on port {}!", static_cast<unsigned>(port));
 
   while (true) {
-    server_socket->Poll(&handler);
+    DrainServerSocket();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   return 0;

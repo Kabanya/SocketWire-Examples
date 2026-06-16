@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "bit_stream.hpp"
+#include "quantization.hpp"
 
 int main() {
   socketwire::BitStream stream;
@@ -51,7 +52,7 @@ int main() {
   std::cout << "\n\nTest 4: Quantized Floats: \n" << '\n';
   float const floats[] = {0.0f, 2.5f, 5.0f, 7.75f, 10.0f};
   for (const float value : floats) {
-    stream.WriteQuantizedFloat(value, 0.0f, 10.0f, 8);
+    socketwire::WriteQuantizedFloat(stream, value, 0.0f, 10.0f, 8);
     std::cout << "Written quantized float: " << value << '\n';
   }
   std::cout << "Final size: " << stream.GetSizeBytes() << " bytes" << '\n';
@@ -89,7 +90,7 @@ int main() {
 
   std::cout << "Read quantized floats: ";
   for (int i = 0; i < 5; i++) {
-    float const qf = stream.ReadQuantizedFloat(0.0f, 10.0f, 8);
+    float const qf = socketwire::ReadQuantizedFloat(stream, 0.0f, 10.0f, 8);
     std::cout << qf << " ";
   }
   std::cout << '\n';

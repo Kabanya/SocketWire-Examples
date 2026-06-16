@@ -1,5 +1,6 @@
 #include <emscripten/emscripten.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -42,39 +43,13 @@ std::string WebSocketUrlFromPage() {
   return result.empty() ? kDefaultWebSocketUrl : result;
 }
 
-class DemoHandler final : public ISocketEventHandler {
- public:
-  void OnDataReceived([[maybe_unused]] const SocketAddress& from,
-                      [[maybe_unused]] std::uint16_t fromPort, const void* data,
-                      std::size_t bytesRead) override {
-    const std::string payload(static_cast<const char*>(data), bytesRead);
-    ++received;
-    std::printf("received echo %d/%d: %s\n", received, kMessagesToSend,
-                payload.c_str());
-  }
-
-  void OnSocketError(SocketError errorCode) override {
-    error = errorCode;
-    std::printf("socket error: %s\n", ToString(errorCode));
-  }
-
-  void OnSocketClosed() override {
-    closed = true;
-    std::printf("socket closed\n");
-  }
-
-  int received = 0;
-  SocketError error = SocketError::kNone;
-  bool closed = false;
-};
-
 struct DemoState {
   std::unique_ptr<ISocket> socket;
-  DemoHandler handler;
   SocketAddress peer = SocketAddress::FromIPv4(0);
   double nextSendAtMs = 0.0;
   double stopAtMs = 0.0;
   int sent = 0;
+  int received = 0;
 };
 
 void Finish(DemoState* state, const char* reason) {
@@ -84,6 +59,33 @@ void Finish(DemoState* state, const char* reason) {
   emscripten_cancel_main_loop();
 }
 
+bool DrainIncoming(DemoState* state) {
+  while (true) {
+    std::uint8_t buffer[4096]{};
+    SocketAddress from{};
+    std::uint16_t fromPort = 0;
+    const SocketResult result =
+      state->socket->Receive(buffer, sizeof(buffer), from, fromPort);
+    if (result.error == SocketError::kWouldBlock) return true;
+    if (result.error == SocketError::kClosed) {
+      Finish(state, "demo stopped");
+      return false;
+    }
+    if (result.Failed()) {
+      std::printf("socket error: %s\n", ToString(result.error));
+      Finish(state, "demo failed");
+      return false;
+    }
+    if (result.bytes <= 0) return true;
+
+    const std::string payload(reinterpret_cast<const char*>(buffer),
+                              static_cast<std::size_t>(result.bytes));
+    ++state->received;
+    std::printf("received echo %d/%d: %s\n", state->received, kMessagesToSend,
+                payload.c_str());
+  }
+}
+
 void Tick(void* userData) {
   auto* state = static_cast<DemoState*>(userData);
   if (state == nullptr) {
@@ -91,17 +93,9 @@ void Tick(void* userData) {
     return;
   }
 
-  state->socket->Poll(&state->handler);
+  if (!DrainIncoming(state)) return;
 
   const double now = emscripten_get_now();
-  if (state->handler.error != SocketError::kNone) {
-    Finish(state, "demo failed");
-    return;
-  }
-  if (state->handler.closed) {
-    Finish(state, "demo stopped");
-    return;
-  }
 
   if (state->sent < kMessagesToSend && now >= state->nextSendAtMs) {
     const int sequence = state->sent + 1;
@@ -121,7 +115,7 @@ void Tick(void* userData) {
     std::printf("sent %d/%d\n", state->sent, kMessagesToSend);
   }
 
-  if (state->handler.received >= kMessagesToSend) {
+  if (state->received >= kMessagesToSend) {
     Finish(state, "demo finished");
     return;
   }
@@ -136,17 +130,11 @@ void Tick(void* userData) {
 int main() {
   InitializeSockets();
 
-  auto* factory = SocketFactoryRegistry::GetFactory();
-  if (factory == nullptr) {
-    std::printf("SocketWire socket factory is not initialized\n");
-    return 1;
-  }
-
   WebSocketConfig config;
   config.url = WebSocketUrlFromPage();
   std::printf("connecting to %s\n", config.url.c_str());
 
-  auto socket = factory->CreateWebSocketClient(config);
+  auto socket = CreateEmscriptenWebSocketClient(config);
   if (socket == nullptr) {
     std::printf("Cannot create Emscripten WebSocket client\n");
     return 1;

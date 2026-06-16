@@ -77,7 +77,7 @@ int main(int argc, const char** argv) {
   std::uint32_t next_sample = 0;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(6)) {
-    connection.Tick();
+    connection.Update();
 
     while (handler.connected &&
            next_sample < stats_window_demo::kKPacketCount) {

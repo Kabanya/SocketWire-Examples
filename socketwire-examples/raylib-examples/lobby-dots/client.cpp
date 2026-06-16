@@ -298,8 +298,8 @@ int main(int argc, const char** argv) {
     const float dt = bench_options.enabled ? (1.f / 60.f) : GetFrameTime();
 
     const auto update_start = std::chrono::steady_clock::now();
-    lobby_connection.Tick();
-    if (game_connection != nullptr) game_connection->Tick();
+    lobby_connection.Update();
+    if (game_connection != nullptr) game_connection->Update();
 
     if (!state.pendingGameHost.empty() && game_connection == nullptr) {
       game_socket = socketwire_examples::CreateUdpSocket(0);

@@ -10,23 +10,24 @@
 
 using namespace socketwire;  // NOLINT
 
-class PrintHandler : public ISocketEventHandler {
- public:
-  void OnDataReceived([[maybe_unused]] const SocketAddress& from,
-                      [[maybe_unused]] std::uint16_t from_port,
-                      const void* data, std::size_t bytes_read) override {
+void DrainSocket(ISocket& socket) {
+  while (true) {
+    std::uint8_t buffer[4096]{};
+    SocketAddress from{};
+    std::uint16_t from_port = 0;
+    const auto result = socket.Receive(buffer, sizeof(buffer), from, from_port);
+    if (result.error == SocketError::kWouldBlock) return;
+    if (result.Failed()) {
+      std::cerr << "Socket error: " << ToString(result.error) << '\n';
+      return;
+    }
+    if (result.bytes <= 0) return;
+
     std::cout << "Received: "
-              << std::string(static_cast<const char*>(data), bytes_read)
+              << std::string(reinterpret_cast<const char*>(buffer),
+                             static_cast<std::size_t>(result.bytes))
               << '\n';
   }
-  void OnSocketError(SocketError error_code) override {
-    std::cerr << "Socket error: " << static_cast<int>(error_code) << '\n';
-  }
-};
-
-// Forward declaration from posix_udp_socket.cpp
-namespace socketwire {
-extern void RegisterPosixSocketFactory();
 }
 
 int main(int argc, const char** argv) {
@@ -47,8 +48,6 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  PrintHandler handler;
-
   SocketAddress const bind_addr = SocketConstants::Any();
   if (server->Bind(bind_addr, port) != SocketError::kNone) {
     std::cout << "Bind failed\n";
@@ -56,7 +55,7 @@ int main(int argc, const char** argv) {
   }
   std::cout << "Server listening on port " << port << "\n";
   while (true) {
-    server->Poll(&handler);
+    DrainSocket(*server);
     std::this_thread::sleep_for(std::chrono::microseconds(10000));
   }
 }

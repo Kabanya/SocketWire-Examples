@@ -422,7 +422,7 @@ int main(int argc, const char** argv) {
     const auto update_start = frame_start;
     const Rectangle disconnect_button{752.0f, 548.0f, 128.0f, 34.0f};
 
-    if (connection != nullptr) connection->Tick();
+    if (connection != nullptr) connection->Update();
 
     if (state.returnToConnect) {
       if (bench_options.enabled) {
