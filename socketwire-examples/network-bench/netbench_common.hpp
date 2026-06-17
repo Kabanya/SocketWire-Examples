@@ -9,7 +9,6 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <print>
 #include <string>
 #include <string_view>
 
@@ -72,6 +71,8 @@ struct Options {
   int warmupMs = 5000;
   int drainMs = 1000;
   int run = 0;
+  int serverWorkers = 1;
+  int serverMaxClients = 0;
   std::uint32_t seed = 1;
   std::string profile = "mixed_latency";
   std::string metricsPath;
@@ -98,16 +99,16 @@ struct ScheduledStream {
   std::uint64_t nextUs = 0;
   std::uint64_t intervalUs = 0;
 
-  void reset(std::uint64_t now_us) {
+  void Reset(std::uint64_t now_us) {
     intervalUs = pps == 0 ? 0 : 1000000ULL / pps;
     nextUs = now_us;
   }
 
-  [[nodiscard]] bool due(std::uint64_t now_us) const {
+  [[nodiscard]] bool Due(std::uint64_t now_us) const {
     return intervalUs > 0 && now_us >= nextUs;
   }
 
-  void advance() { nextUs += std::max<std::uint64_t>(intervalUs, 1); }
+  void Advance() { nextUs += std::max<std::uint64_t>(intervalUs, 1); }
 };
 
 struct BucketCounters {
@@ -128,27 +129,27 @@ struct AppStats {
   double updateMsMax = 0.0;
   std::uint64_t updateSamples = 0;
 
-  void noteSent(Bucket bucket, std::size_t bytes) {
+  void NoteSent(Bucket bucket, std::size_t bytes) {
     buckets.at(static_cast<std::size_t>(bucket)).sent += 1;
     payloadTxBytes += bytes;
   }
 
-  void noteEchoed(Bucket bucket, std::size_t bytes) {
+  void NoteEchoed(Bucket bucket, std::size_t bytes) {
     buckets.at(static_cast<std::size_t>(bucket)).echoed += 1;
     payloadRxBytes += bytes;
   }
 
-  void noteUpdateMs(double ms) {
+  void NoteUpdateMs(double ms) {
     updateMsSum += ms;
     updateMsMax = std::max(updateMsMax, ms);
     updateSamples += 1;
   }
 
-  [[nodiscard]] double updateAvgMs() const {
-    return updateSamples == 0 ? 0.0 : updateMsSum / updateSamples;
+  [[nodiscard]] double UpdateAvgMs() const {
+    return updateSamples == 0 ? 0.0 : updateMsSum / static_cast<double>(updateSamples);
   }
 
-  void resetInterval() {
+  void ResetInterval() {
     updateMsSum = 0.0;
     updateMsMax = 0.0;
     updateSamples = 0;
@@ -157,7 +158,7 @@ struct AppStats {
 
 struct TransportStats {
   double rttMs = 0.0;
-  std::uint64_t lostPackets = 0;
+  std::uint64_t LostPackets = 0;
   std::uint64_t inflightPackets = 0;
   std::uint64_t sendWindow = 0;
   std::uint64_t deadlineSendDrops = 0;
@@ -170,11 +171,17 @@ struct ProcessStats {
   int clientsRequested = 1;
   int clientsCreated = 1;
   int connectedClients = 0;
+  int serverWorkers = 1;
+  bool reusePort = false;
+  int workerConnectedMin = 0;
+  int workerConnectedMax = 0;
+  double workerUpdateMsAvg = 0.0;
+  double workerUpdateMsMax = 0.0;
   std::string_view status = "running";
   TransportStats transport{};
 };
 
-inline bool parseInt(const char* text, int& out) {
+inline bool ParseInt(const char* text, int& out) {
   if (text == nullptr || *text == '\0') return false;
   const std::string_view view(text);
   int value = 0;
@@ -185,14 +192,14 @@ inline bool parseInt(const char* text, int& out) {
   return true;
 }
 
-inline bool parseUInt16(const char* text, std::uint16_t& out) {
+inline bool ParseUInt16(const char* text, std::uint16_t& out) {
   int value = 0;
-  if (!parseInt(text, value) || value <= 0 || value > 65535) return false;
+  if (!ParseInt(text, value) || value <= 0 || value > 65535) return false;
   out = static_cast<std::uint16_t>(value);
   return true;
 }
 
-inline Options parseOptions(int argc, const char** argv,
+inline Options ParseOptions(int argc, const char** argv,
                             std::uint16_t default_port = kDefaultPort) {
   Options options;
   options.port = default_port;
@@ -202,20 +209,25 @@ inline Options parseOptions(int argc, const char** argv,
     if (std::strcmp(arg, "--host") == 0 && i + 1 < argc) {
       options.host = argv[++i];
     } else if (std::strcmp(arg, "--port") == 0 && i + 1 < argc) {
-      (void)parseUInt16(argv[++i], options.port);
+      (void)ParseUInt16(argv[++i], options.port);
     } else if (std::strcmp(arg, "--clients") == 0 && i + 1 < argc) {
-      (void)parseInt(argv[++i], options.clients);
+      (void)ParseInt(argv[++i], options.clients);
     } else if (std::strcmp(arg, "--duration-ms") == 0 && i + 1 < argc) {
-      (void)parseInt(argv[++i], options.durationMs);
+      (void)ParseInt(argv[++i], options.durationMs);
     } else if (std::strcmp(arg, "--warmup-ms") == 0 && i + 1 < argc) {
-      (void)parseInt(argv[++i], options.warmupMs);
+      (void)ParseInt(argv[++i], options.warmupMs);
     } else if (std::strcmp(arg, "--drain-ms") == 0 && i + 1 < argc) {
-      (void)parseInt(argv[++i], options.drainMs);
+      (void)ParseInt(argv[++i], options.drainMs);
     } else if (std::strcmp(arg, "--run") == 0 && i + 1 < argc) {
-      (void)parseInt(argv[++i], options.run);
+      (void)ParseInt(argv[++i], options.run);
+    } else if (std::strcmp(arg, "--server-workers") == 0 && i + 1 < argc) {
+      (void)ParseInt(argv[++i], options.serverWorkers);
+    } else if (std::strcmp(arg, "--server-max-clients") == 0 &&
+               i + 1 < argc) {
+      (void)ParseInt(argv[++i], options.serverMaxClients);
     } else if (std::strcmp(arg, "--seed") == 0 && i + 1 < argc) {
       int seed = 1;
-      if (parseInt(argv[++i], seed)) {
+      if (ParseInt(argv[++i], seed)) {
         options.seed = static_cast<std::uint32_t>(std::max(seed, 1));
       }
     } else if (std::strcmp(arg, "--profile") == 0 && i + 1 < argc) {
@@ -231,11 +243,12 @@ inline Options parseOptions(int argc, const char** argv,
   if (options.durationMs <= 0) options.durationMs = 60000;
   if (options.warmupMs < 0) options.warmupMs = 0;
   if (options.drainMs < 0) options.drainMs = 0;
+  if (options.serverWorkers <= 0) options.serverWorkers = 1;
   if (options.metricsMode != "summary") options.metricsMode = "samples";
   return options;
 }
 
-inline TrafficProfile profileByName(const std::string& name) {
+inline TrafficProfile ProfileByName(const std::string& name) {
   if (name == "reliable_small") {
     return {.name = "reliable_small",
             .reliablePps = 200,
@@ -291,8 +304,7 @@ inline TrafficProfile profileByName(const std::string& name) {
             .unsequencedBytes = 64,
             .deadlineBytes = 96};
   }
-  if (name == "bad_wifi" || name == "normal_online" ||
-      name == "perfect_lan") {
+  if (name == "bad_wifi" || name == "normal_online" || name == "perfect_lan") {
     return {.name = "mixed_latency",
             .reliablePps = 20,
             .unreliablePps = 60,
@@ -363,14 +375,14 @@ inline TrafficProfile profileByName(const std::string& name) {
   return {.name = "mixed_latency"};
 }
 
-inline std::uint64_t nowUs() {
+inline std::uint64_t NowUs() {
   return static_cast<std::uint64_t>(
     std::chrono::duration_cast<std::chrono::microseconds>(
       Clock::now().time_since_epoch())
       .count());
 }
 
-inline std::uint32_t checksum(const std::uint8_t* data, std::size_t size) {
+inline std::uint32_t Checksum(const std::uint8_t* data, std::size_t size) {
   std::uint32_t hash = 2166136261u;
   for (std::size_t i = 0; i < size; ++i) {
     hash ^= data[i];
@@ -379,33 +391,33 @@ inline std::uint32_t checksum(const std::uint8_t* data, std::size_t size) {
   return hash;
 }
 
-inline void writeU32(std::uint8_t* data, std::uint32_t value) {
+inline void WriteU32(std::uint8_t* data, std::uint32_t value) {
   data[0] = static_cast<std::uint8_t>((value >> 24) & 0xFFu);
   data[1] = static_cast<std::uint8_t>((value >> 16) & 0xFFu);
   data[2] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
   data[3] = static_cast<std::uint8_t>(value & 0xFFu);
 }
 
-inline void writeU64(std::uint8_t* data, std::uint64_t value) {
+inline void WriteU64(std::uint8_t* data, std::uint64_t value) {
   for (int i = 7; i >= 0; --i) {
     data[7 - i] = static_cast<std::uint8_t>((value >> (i * 8)) & 0xFFu);
   }
 }
 
-inline std::uint32_t readU32(const std::uint8_t* data) {
+inline std::uint32_t ReadU32(const std::uint8_t* data) {
   return (static_cast<std::uint32_t>(data[0]) << 24) |
          (static_cast<std::uint32_t>(data[1]) << 16) |
          (static_cast<std::uint32_t>(data[2]) << 8) |
          static_cast<std::uint32_t>(data[3]);
 }
 
-inline std::uint64_t readU64(const std::uint8_t* data) {
+inline std::uint64_t ReadU64(const std::uint8_t* data) {
   std::uint64_t value = 0;
   for (int i = 0; i < 8; ++i) value = (value << 8) | data[i];
   return value;
 }
 
-inline Bucket bucketForMode(DeliveryMode mode) {
+inline Bucket BucketForMode(DeliveryMode mode) {
   switch (mode) {
     case DeliveryMode::kReliable:
       return Bucket::kReliable;
@@ -427,7 +439,7 @@ inline Bucket bucketForMode(DeliveryMode mode) {
   return Bucket::kReliable;
 }
 
-inline bool validMode(DeliveryMode mode) {
+inline bool ValidMode(DeliveryMode mode) {
   switch (mode) {
     case DeliveryMode::kReliable:
     case DeliveryMode::kUnreliable:
@@ -442,7 +454,7 @@ inline bool validMode(DeliveryMode mode) {
   return false;
 }
 
-inline std::uint8_t channelForMode(DeliveryMode mode) {
+inline std::uint8_t ChannelForMode(DeliveryMode mode) {
   switch (mode) {
     case DeliveryMode::kReliable:
       return 0;
@@ -464,32 +476,32 @@ inline std::uint8_t channelForMode(DeliveryMode mode) {
   return 0;
 }
 
-inline std::size_t makePayload(std::uint8_t* out, std::size_t requested_size,
+inline std::size_t MakePayload(std::uint8_t* out, std::size_t requested_size,
                                PacketKind kind, DeliveryMode mode,
-                               std::uint32_t client_id,
-                               std::uint32_t sequence, std::uint32_t seed) {
+                               std::uint32_t client_id, std::uint32_t sequence,
+                               std::uint32_t seed) {
   const std::size_t size =
     std::clamp(requested_size, kHeaderSize, kMaxPayloadSize);
   std::memcpy(out, kMagic.data(), kMagic.size());
   out[4] = static_cast<std::uint8_t>(kind);
   out[5] = static_cast<std::uint8_t>(mode);
-  out[6] = channelForMode(mode);
+  out[6] = ChannelForMode(mode);
   out[7] = 0;
-  writeU32(out + 8, client_id);
-  writeU32(out + 12, sequence);
-  writeU64(out + 16, nowUs());
-  writeU32(out + 24, static_cast<std::uint32_t>(size - kHeaderSize));
+  WriteU32(out + 8, client_id);
+  WriteU32(out + 12, sequence);
+  WriteU64(out + 16, NowUs());
+  WriteU32(out + 24, static_cast<std::uint32_t>(size - kHeaderSize));
 
   for (std::size_t i = kHeaderSize; i < size; ++i) {
     out[i] = static_cast<std::uint8_t>(
       (seed + client_id * 31u + sequence * 17u + i * 13u) & 0xFFu);
   }
 
-  writeU32(out + 28, checksum(out + kHeaderSize, size - kHeaderSize));
+  WriteU32(out + 28, Checksum(out + kHeaderSize, size - kHeaderSize));
   return size;
 }
 
-inline bool parseHeader(const void* data, std::size_t size,
+inline bool ParseHeader(const void* data, std::size_t size,
                         PacketHeader& header) {
   if (data == nullptr || size < kHeaderSize) return false;
 
@@ -499,28 +511,28 @@ inline bool parseHeader(const void* data, std::size_t size,
   header.kind = static_cast<PacketKind>(bytes[4]);
   header.mode = static_cast<DeliveryMode>(bytes[5]);
   header.channel = bytes[6];
-  header.clientId = readU32(bytes + 8);
-  header.sequence = readU32(bytes + 12);
-  header.sentUs = readU64(bytes + 16);
-  header.bodySize = readU32(bytes + 24);
-  header.checksum = readU32(bytes + 28);
+  header.clientId = ReadU32(bytes + 8);
+  header.sequence = ReadU32(bytes + 12);
+  header.sentUs = ReadU64(bytes + 16);
+  header.bodySize = ReadU32(bytes + 24);
+  header.checksum = ReadU32(bytes + 28);
 
   if (header.kind != PacketKind::kData && header.kind != PacketKind::kEcho) {
     return false;
   }
-  if (!validMode(header.mode)) return false;
-  if (header.channel != channelForMode(header.mode)) return false;
+  if (!ValidMode(header.mode)) return false;
+  if (header.channel != ChannelForMode(header.mode)) return false;
   return header.bodySize == size - kHeaderSize;
 }
 
-inline bool validPayload(const PacketHeader& header, const void* data,
+inline bool ValidPayload(const PacketHeader& header, const void* data,
                          std::size_t size) {
   if (data == nullptr || size < kHeaderSize) return false;
   const auto* bytes = static_cast<const std::uint8_t*>(data);
-  return header.checksum == checksum(bytes + kHeaderSize, size - kHeaderSize);
+  return header.checksum == Checksum(bytes + kHeaderSize, size - kHeaderSize);
 }
 
-inline double cpuSeconds() {
+inline double CpuSeconds() {
 #if defined(NETBENCH_HAS_GETRUSAGE)
   rusage usage{};
   if (getrusage(RUSAGE_SELF, &usage) != 0) return 0.0;
@@ -533,7 +545,7 @@ inline double cpuSeconds() {
 #endif
 }
 
-inline std::uint64_t rssKb() {
+inline std::uint64_t RssKb() {
 #if defined(NETBENCH_HAS_GETRUSAGE)
   rusage usage{};
   if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
@@ -555,7 +567,7 @@ class MetricsWriter {
         start_(Clock::now()),
         lastSample_(start_),
         measurementStart_(start_),
-        lastCpuSeconds_(cpuSeconds()) {
+        lastCpuSeconds_(CpuSeconds()) {
     if (!options_.metricsPath.empty()) {
       const std::filesystem::path path(options_.metricsPath);
       const auto parent = path.parent_path();
@@ -568,139 +580,145 @@ class MetricsWriter {
     if (file_ != nullptr) std::fclose(file_);
   }
 
-  [[nodiscard]] bool measuring() const {
-    const auto elapsed = elapsedMs(Clock::now());
+  [[nodiscard]] bool Measuring() const {
+    const auto elapsed = ElapsedMs(Clock::now());
     return elapsed >= options_.warmupMs &&
            elapsed < options_.warmupMs + options_.durationMs;
   }
 
-  [[nodiscard]] bool done() const {
-    return elapsedMs(Clock::now()) >=
+  [[nodiscard]] bool Done() const {
+    return ElapsedMs(Clock::now()) >=
            options_.warmupMs + options_.durationMs + options_.drainMs;
   }
 
-  void maybeWriteSample(AppStats& stats, const ProcessStats& process) {
+  void MaybeWriteSample(AppStats& stats, const ProcessStats& process) {
     if (options_.metricsMode == "summary") return;
     const auto now = Clock::now();
-    if (elapsedMs(now) < options_.warmupMs) return;
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(now -
-                                                              lastSample_)
+    if (ElapsedMs(now) < options_.warmupMs) return;
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSample_)
           .count() < 1000) {
       return;
     }
-    write("sample", stats, process, now);
-    stats.resetInterval();
+    Write("sample", stats, process, now);
+    stats.ResetInterval();
     lastSample_ = now;
   }
 
-  void finish(AppStats& stats, ProcessStats process) {
+  void Finish(AppStats& stats, ProcessStats process) {
     process.status = process.status.empty() ? "ok" : process.status;
-    write("final", stats, process, Clock::now());
+    Write("final", stats, process, Clock::now());
   }
 
  private:
-  [[nodiscard]] std::int64_t elapsedMs(Clock::time_point now) const {
+  [[nodiscard]] std::int64_t ElapsedMs(Clock::time_point now) const {
     return std::chrono::duration_cast<std::chrono::milliseconds>(now - start_)
       .count();
   }
 
-  static std::uint64_t lost(const BucketCounters& counters) {
+  static std::uint64_t Lost(const BucketCounters& counters) {
     return counters.sent > counters.echoed ? counters.sent - counters.echoed
                                            : 0;
   }
 
-  void write(const char* record, const AppStats& stats,
+  void Write(const char* record, const AppStats& stats,
              const ProcessStats& process, Clock::time_point now) {
-    if (elapsedMs(now) >= options_.warmupMs && measurementStart_ == start_) {
+    if (ElapsedMs(now) >= options_.warmupMs && measurementStart_ == start_) {
       measurementStart_ = now;
-      lastCpuSeconds_ = cpuSeconds();
+      lastCpuSeconds_ = CpuSeconds();
     }
 
-    const double current_cpu = cpuSeconds();
+    const double current_cpu = CpuSeconds();
     const double sample_seconds =
       std::max(0.001, std::chrono::duration<double>(now - lastSample_).count());
     const double cpu_percent =
       ((current_cpu - lastCpuSeconds_) / sample_seconds) * 100.0;
     lastCpuSeconds_ = current_cpu;
 
-    const auto& reliable = stats.buckets.at(static_cast<std::size_t>(
-      Bucket::kReliable));
-    const auto& unreliable = stats.buckets.at(static_cast<std::size_t>(
-      Bucket::kUnreliable));
-    const auto& unsequenced = stats.buckets.at(static_cast<std::size_t>(
-      Bucket::kUnsequenced));
-    const auto& sequenced = stats.buckets.at(static_cast<std::size_t>(
-      Bucket::kSequenced));
-    const auto& deadlineReliable = stats.buckets.at(static_cast<std::size_t>(
-      Bucket::kDeadlineReliable));
-    const auto& deadlineUnreliable = stats.buckets.at(static_cast<std::size_t>(
-      Bucket::kDeadlineUnreliable));
-    const auto& deadlineUnsequenced = stats.buckets.at(
-      static_cast<std::size_t>(Bucket::kDeadlineUnsequenced));
-    const auto& deadlineSequenced = stats.buckets.at(
-      static_cast<std::size_t>(Bucket::kDeadlineSequenced));
+    const auto& reliable =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kReliable));
+    const auto& unreliable =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kUnreliable));
+    const auto& unsequenced =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kUnsequenced));
+    const auto& sequenced =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kSequenced));
+    const auto& deadline_reliable =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kDeadlineReliable));
+    const auto& deadline_unreliable =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kDeadlineUnreliable));
+    const auto& deadline_unsequenced =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kDeadlineUnsequenced));
+    const auto& deadline_sequenced =
+      stats.buckets.at(static_cast<std::size_t>(Bucket::kDeadlineSequenced));
     const BucketCounters deadline{
-      .sent = deadlineReliable.sent + deadlineUnreliable.sent +
-              deadlineUnsequenced.sent + deadlineSequenced.sent,
-      .echoed = deadlineReliable.echoed + deadlineUnreliable.echoed +
-                deadlineUnsequenced.echoed + deadlineSequenced.echoed,
+      .sent = deadline_reliable.sent + deadline_unreliable.sent +
+              deadline_unsequenced.sent + deadline_sequenced.sent,
+      .echoed = deadline_reliable.echoed + deadline_unreliable.echoed +
+                deadline_unsequenced.echoed + deadline_sequenced.echoed,
     };
 
     const auto print = [&](FILE* out) {
       if (out == nullptr) return;
-      std::println(
-        out,
+      const auto json = std::format(
         "{{\"example\":\"network-bench\",\"backend\":\"socketwire\","
         "\"role\":\"{}\",\"record\":\"{}\",\"profile\":\"{}\",\"run\":{},"
         "\"elapsed_ms\":{},\"clients_requested\":{},\"clients_created\":{},"
         "\"connected_clients\":{},\"status\":\"{}\","
-        "\"reliable_sent\":{},\"reliable_echoed\":{},\"reliable_lost\":{},"
+        "\"server_workers\":{},\"reuse_port\":{},"
+        "\"worker_connected_min\":{},\"worker_connected_max\":{},"
+        "\"worker_update_ms_avg\":{:.6f},"
+        "\"worker_update_ms_max\":{:.6f},"
+        "\"reliable_sent\":{},\"reliable_echoed\":{},\"reliable_Lost\":{},"
         "\"unreliable_sent\":{},\"unreliable_echoed\":{},"
-        "\"unreliable_lost\":{},\"unsequenced_sent\":{},"
-        "\"unsequenced_echoed\":{},\"unsequenced_lost\":{},"
+        "\"unreliable_Lost\":{},\"unsequenced_sent\":{},"
+        "\"unsequenced_echoed\":{},\"unsequenced_Lost\":{},"
         "\"sequenced_sent\":{},\"sequenced_echoed\":{},"
-        "\"sequenced_lost\":{},"
-        "\"deadline_sent\":{},\"deadline_echoed\":{},\"deadline_lost\":{},"
+        "\"sequenced_Lost\":{},"
+        "\"deadline_sent\":{},\"deadline_echoed\":{},\"deadline_Lost\":{},"
         "\"deadline_reliable_sent\":{},\"deadline_reliable_echoed\":{},"
-        "\"deadline_reliable_lost\":{},"
+        "\"deadline_reliable_Lost\":{},"
         "\"deadline_unreliable_sent\":{},\"deadline_unreliable_echoed\":{},"
-        "\"deadline_unreliable_lost\":{},"
+        "\"deadline_unreliable_Lost\":{},"
         "\"deadline_unsequenced_sent\":{},"
         "\"deadline_unsequenced_echoed\":{},"
-        "\"deadline_unsequenced_lost\":{},"
+        "\"deadline_unsequenced_Lost\":{},"
         "\"deadline_sequenced_sent\":{},\"deadline_sequenced_echoed\":{},"
-        "\"deadline_sequenced_lost\":{},"
+        "\"deadline_sequenced_Lost\":{},"
         "\"send_failures\":{},\"connect_failures\":{},"
         "\"malformed_packets\":{},\"corrupted_packets\":{},"
         "\"payload_tx_bytes\":{},\"payload_rx_bytes\":{},"
-        "\"rtt_ms\":{:.3f},\"lost_packets\":{},\"inflight_packets\":{},"
+        "\"rtt_ms\":{:.3f},\"Lost_packets\":{},\"inflight_packets\":{},"
         "\"send_window\":{},\"deadline_send_drops\":{},"
         "\"deadline_receive_drops\":{},\"deadline_retries_prevented\":{},"
         "\"deadline_expired_fragment_groups\":{},"
         "\"update_ms_avg\":{:.6f},\"update_ms_max\":{:.6f},"
-        "\"cpu_percent\":{:.3f},\"rss_kb\":{}}}",
-        role_, record, options_.profile, options_.run, elapsedMs(now),
+        "\"cpu_percent\":{:.3f},\"cpu_process_percent\":{:.3f},"
+        "\"rss_kb\":{}}}",
+        role_, record, options_.profile, options_.run, ElapsedMs(now),
         process.clientsRequested, process.clientsCreated,
-        process.connectedClients, process.status, reliable.sent,
-        reliable.echoed, lost(reliable), unreliable.sent, unreliable.echoed,
-        lost(unreliable), unsequenced.sent, unsequenced.echoed,
-        lost(unsequenced), sequenced.sent, sequenced.echoed, lost(sequenced),
-        deadline.sent, deadline.echoed, lost(deadline),
-        deadlineReliable.sent, deadlineReliable.echoed, lost(deadlineReliable),
-        deadlineUnreliable.sent, deadlineUnreliable.echoed,
-        lost(deadlineUnreliable), deadlineUnsequenced.sent,
-        deadlineUnsequenced.echoed, lost(deadlineUnsequenced),
-        deadlineSequenced.sent, deadlineSequenced.echoed,
-        lost(deadlineSequenced),
-        stats.sendFailures, stats.connectFailures, stats.malformedPackets,
-        stats.corruptedPackets, stats.payloadTxBytes, stats.payloadRxBytes,
-        process.transport.rttMs, process.transport.lostPackets,
-        process.transport.inflightPackets, process.transport.sendWindow,
-        process.transport.deadlineSendDrops,
+        process.connectedClients, process.status, process.serverWorkers,
+        process.reusePort, process.workerConnectedMin,
+        process.workerConnectedMax, process.workerUpdateMsAvg,
+        process.workerUpdateMsMax, reliable.sent, reliable.echoed,
+        Lost(reliable), unreliable.sent, unreliable.echoed, Lost(unreliable),
+        unsequenced.sent, unsequenced.echoed, Lost(unsequenced), sequenced.sent,
+        sequenced.echoed, Lost(sequenced), deadline.sent, deadline.echoed,
+        Lost(deadline), deadline_reliable.sent, deadline_reliable.echoed,
+        Lost(deadline_reliable), deadline_unreliable.sent,
+        deadline_unreliable.echoed, Lost(deadline_unreliable),
+        deadline_unsequenced.sent, deadline_unsequenced.echoed,
+        Lost(deadline_unsequenced), deadline_sequenced.sent,
+        deadline_sequenced.echoed, Lost(deadline_sequenced), stats.sendFailures,
+        stats.connectFailures, stats.malformedPackets, stats.corruptedPackets,
+        stats.payloadTxBytes, stats.payloadRxBytes, process.transport.rttMs,
+        process.transport.LostPackets, process.transport.inflightPackets,
+        process.transport.sendWindow, process.transport.deadlineSendDrops,
         process.transport.deadlineReceiveDrops,
         process.transport.deadlineRetriesPrevented,
-        process.transport.deadlineExpiredFragmentGroups, stats.updateAvgMs(),
-        stats.updateMsMax, cpu_percent, rssKb());
+        process.transport.deadlineExpiredFragmentGroups, stats.UpdateAvgMs(),
+        stats.updateMsMax, cpu_percent, cpu_percent, RssKb());
+      std::fwrite(json.data(), 1, json.size(), out);
+      std::fwrite("\n", 1, 1, out);
       std::fflush(out);
     };
 

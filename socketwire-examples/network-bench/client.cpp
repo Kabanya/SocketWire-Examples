@@ -2,10 +2,10 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <format>
+#include <iostream>
 #include <memory>
-#include <print>
 #include <thread>
-#include <vector>
 
 #include "i_socket.hpp"
 #include "netbench_common.hpp"
@@ -49,16 +49,16 @@ class Handler final : public socketwire::IReliableConnectionHandler {
  private:
   void Receive(const void* data, std::size_t size) {
     netbench::PacketHeader header;
-    if (!netbench::parseHeader(data, size, header) ||
+    if (!netbench::ParseHeader(data, size, header) ||
         header.kind != netbench::PacketKind::kEcho) {
       stats_.malformedPackets += 1;
       return;
     }
-    if (!netbench::validPayload(header, data, size)) {
+    if (!netbench::ValidPayload(header, data, size)) {
       stats_.corruptedPackets += 1;
       return;
     }
-    stats_.noteEchoed(netbench::bucketForMode(header.mode), size);
+    stats_.NoteEchoed(netbench::BucketForMode(header.mode), size);
   }
 
   netbench::AppStats& stats_;
@@ -88,7 +88,7 @@ void ResetStreams(ClientState& client, const netbench::TrafficProfile& profile,
     netbench::ScheduledStream{profile.sequencedPps, profile.sequencedBytes},
     netbench::ScheduledStream{profile.deadlinePps, profile.deadlineBytes},
   };
-  for (auto& stream : client.streams) stream.reset(now_us);
+  for (auto& stream : client.streams) stream.Reset(now_us);
 }
 
 void DrainSocket(ClientState& client) {
@@ -112,12 +112,12 @@ bool SendPayload(ClientState& client, netbench::DeliveryMode mode,
   if (client.connection == nullptr || !client.handler.connected) return false;
 
   std::array<std::uint8_t, netbench::kMaxPayloadSize> payload{};
-  const std::size_t size = netbench::makePayload(
+  const std::size_t size = netbench::MakePayload(
     payload.data(), bytes, netbench::PacketKind::kData, mode, client.clientId,
     client.nextSequence++, options.seed);
 
   bool sent = false;
-  const std::uint8_t channel = netbench::channelForMode(mode);
+  const std::uint8_t channel = netbench::ChannelForMode(mode);
   switch (mode) {
     case netbench::DeliveryMode::kReliable:
       sent = client.connection->SendReliable(channel, payload.data(), size);
@@ -150,7 +150,7 @@ bool SendPayload(ClientState& client, netbench::DeliveryMode mode,
   }
 
   if (sent) {
-    stats.noteSent(netbench::bucketForMode(mode), size);
+    stats.NoteSent(netbench::BucketForMode(mode), size);
   } else {
     stats.sendFailures += 1;
   }
@@ -172,11 +172,11 @@ netbench::DeliveryMode NextDeadlineMode(ClientState& client) {
 void SendDue(ClientState& client, netbench::ScheduledStream& stream,
              netbench::DeliveryMode mode, const netbench::Options& options,
              netbench::AppStats& stats) {
-  const auto now_us = netbench::nowUs();
+  const auto now_us = netbench::NowUs();
   int burst = 0;
-  while (stream.due(now_us) && burst < 8) {
+  while (stream.Due(now_us) && burst < 8) {
     (void)SendPayload(client, mode, stream.bytes, options, stats);
-    stream.advance();
+    stream.Advance();
     burst += 1;
   }
 }
@@ -184,12 +184,12 @@ void SendDue(ClientState& client, netbench::ScheduledStream& stream,
 void SendDeadlineDue(ClientState& client, netbench::ScheduledStream& stream,
                      const netbench::Options& options,
                      netbench::AppStats& stats) {
-  const auto now_us = netbench::nowUs();
+  const auto now_us = netbench::NowUs();
   int burst = 0;
-  while (stream.due(now_us) && burst < 8) {
+  while (stream.Due(now_us) && burst < 8) {
     (void)SendPayload(client, NextDeadlineMode(client), stream.bytes, options,
                       stats);
-    stream.advance();
+    stream.Advance();
     burst += 1;
   }
 }
@@ -209,7 +209,7 @@ netbench::TransportStats TransportStats(
   for (const auto& client : clients) {
     if (client->connection == nullptr || !client->handler.connected) continue;
     stats.rttMs += client->connection->GetRtt();
-    stats.lostPackets += client->connection->GetLostPackets();
+    stats.LostPackets += client->connection->GetLostPackets();
     stats.inflightPackets += client->connection->GetInflightCount();
     stats.sendWindow += client->connection->GetSendWindow();
     stats.deadlineSendDrops += client->connection->GetDeadlineSendDrops();
@@ -228,8 +228,8 @@ netbench::TransportStats TransportStats(
 }  // namespace
 
 int main(int argc, const char** argv) {
-  const auto options = netbench::parseOptions(argc, argv);
-  const auto profile = netbench::profileByName(options.profile);
+  const auto options = netbench::ParseOptions(argc, argv);
+  const auto profile = netbench::ProfileByName(options.profile);
   netbench::AppStats stats;
 
   const auto server_address = socketwire_examples::ResolveAddress(options.host);
@@ -256,16 +256,16 @@ int main(int argc, const char** argv) {
     }
     client->nextConnectAttempt =
       netbench::Clock::now() + std::chrono::milliseconds(250);
-    ResetStreams(*client, profile, netbench::nowUs());
+    ResetStreams(*client, profile, netbench::NowUs());
     clients.push_back(std::move(client));
   }
 
-  std::println("netbench client created {}/{} real UDP clients",
-               clients.size(), options.clients);
+  std::cout << std::format("netbench client created {}/{} real UDP clients",
+                           clients.size(), options.clients) << "\n";
 
   netbench::MetricsWriter metrics(options, "client");
   bool reset_at_measurement = false;
-  while (!metrics.done() && !clients.empty()) {
+  while (!metrics.Done() && !clients.empty()) {
     const auto loop_start = netbench::Clock::now();
 
     for (auto& client : clients) {
@@ -281,13 +281,13 @@ int main(int argc, const char** argv) {
       client->connection->Update();
     }
 
-    if (metrics.measuring() && !reset_at_measurement) {
-      const auto now_us = netbench::nowUs();
+    if (metrics.Measuring() && !reset_at_measurement) {
+      const auto now_us = netbench::NowUs();
       for (auto& client : clients) ResetStreams(*client, profile, now_us);
       reset_at_measurement = true;
     }
 
-    if (metrics.measuring()) {
+    if (metrics.Measuring()) {
       for (auto& client : clients) {
         if (!client->handler.connected) continue;
         SendDue(*client, client->streams.at(0),
@@ -302,7 +302,7 @@ int main(int argc, const char** argv) {
       }
     }
 
-    metrics.maybeWriteSample(
+    metrics.MaybeWriteSample(
       stats, {.clientsRequested = options.clients,
               .clientsCreated = static_cast<int>(clients.size()),
               .connectedClients = ConnectedClients(clients),
@@ -310,7 +310,7 @@ int main(int argc, const char** argv) {
               .transport = TransportStats(clients)});
 
     const auto loop_end = netbench::Clock::now();
-    stats.noteUpdateMs(
+    stats.NoteUpdateMs(
       static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
                             loop_end - loop_start)
                             .count()) /
@@ -325,7 +325,7 @@ int main(int argc, const char** argv) {
     status = "partial";
   }
 
-  metrics.finish(stats, {.clientsRequested = options.clients,
+  metrics.Finish(stats, {.clientsRequested = options.clients,
                          .clientsCreated = static_cast<int>(clients.size()),
                          .connectedClients = ConnectedClients(clients),
                          .status = status,

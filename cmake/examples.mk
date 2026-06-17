@@ -26,6 +26,7 @@ NETBENCH_DURATION_MS ?= 60000
 NETBENCH_WARMUP_MS ?= 5000
 NETBENCH_DRAIN_MS ?= 1000
 NETBENCH_SERVER_EXTRA_MS ?= 60000
+NETBENCH_SERVER_WORKERS ?= 1
 NETBENCH_METRICS ?= $(BUILD_DIR)/netbench/socketwire-stress.jsonl
 
 ifeq ($(JOBS),auto)
@@ -198,6 +199,7 @@ run-network-bench-sweep: build-netbench-socketwire-server build-netbench-socketw
 			--duration-ms "$$server_duration" \
 			--warmup-ms 0 \
 			--drain-ms 0 \
+			--server-workers "$(NETBENCH_SERVER_WORKERS)" \
 			--metrics "$(NETBENCH_METRICS)" \
 			--run "$$run" & \
 		server_pid="$$!"; \

@@ -4,11 +4,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <thread>
 #include <vector>
 
 #include "netbench_common.hpp"
 #include "server_connection_hub.hpp"
+#include "sharded_connection_manager.hpp"
 #include "socketwire_example_utils.hpp"
 
 namespace {
@@ -25,12 +27,10 @@ socketwire::ReliableConnectionConfig Config() {
   return cfg;
 }
 
-bool SendEcho(socketwire_examples::ServerConnectionHub::Client& client,
+bool SendEcho(socketwire::ReliableConnection& connection,
               const netbench::PacketHeader& header, const void* data,
               std::size_t size) {
-  if (client.connection == nullptr || !client.connection->IsConnected()) {
-    return false;
-  }
+  if (!connection.IsConnected()) return false;
 
   std::array<std::uint8_t, netbench::kMaxPayloadSize> payload{};
   const std::size_t copy_size = std::min(size, payload.size());
@@ -39,28 +39,27 @@ bool SendEcho(socketwire_examples::ServerConnectionHub::Client& client,
 
   switch (header.mode) {
     case netbench::DeliveryMode::kReliable:
-      return client.connection->SendReliable(header.channel, payload.data(),
-                                             copy_size);
+      return connection.SendReliable(header.channel, payload.data(), copy_size);
     case netbench::DeliveryMode::kUnreliable:
-      return client.connection->SendUnreliable(header.channel, payload.data(),
-                                               copy_size);
+      return connection.SendUnreliable(header.channel, payload.data(),
+                                       copy_size);
     case netbench::DeliveryMode::kUnsequenced:
-      return client.connection->SendUnsequenced(header.channel, payload.data(),
-                                                copy_size);
+      return connection.SendUnsequenced(header.channel, payload.data(),
+                                        copy_size);
     case netbench::DeliveryMode::kSequenced:
-      return client.connection->SendSequenced(header.channel, payload.data(),
-                                              copy_size);
+      return connection.SendSequenced(header.channel, payload.data(),
+                                      copy_size);
     case netbench::DeliveryMode::kDeadlineReliable:
-      return client.connection->SendReliableWithDeadline(
-        header.channel, payload.data(), copy_size, 1000);
+      return connection.SendReliableWithDeadline(header.channel, payload.data(),
+                                                 copy_size, 1000);
     case netbench::DeliveryMode::kDeadlineUnreliable:
-      return client.connection->SendUnreliableWithDeadline(
+      return connection.SendUnreliableWithDeadline(
         header.channel, payload.data(), copy_size, 1000);
     case netbench::DeliveryMode::kDeadlineUnsequenced:
-      return client.connection->SendUnsequencedWithDeadline(
+      return connection.SendUnsequencedWithDeadline(
         header.channel, payload.data(), copy_size, 1000);
     case netbench::DeliveryMode::kDeadlineSequenced:
-      return client.connection->SendSequencedWithDeadline(
+      return connection.SendSequencedWithDeadline(
         header.channel, payload.data(), copy_size, 1000);
   }
   return false;
@@ -77,7 +76,7 @@ netbench::TransportStats TransportStats(
       continue;
     }
     stats.rttMs += client->connection->GetRtt();
-    stats.lostPackets += client->connection->GetLostPackets();
+    stats.LostPackets += client->connection->GetLostPackets();
     stats.inflightPackets += client->connection->GetInflightCount();
     stats.sendWindow += client->connection->GetSendWindow();
     stats.deadlineSendDrops += client->connection->GetDeadlineSendDrops();
@@ -92,20 +91,136 @@ netbench::TransportStats TransportStats(
   return stats;
 }
 
+netbench::TransportStats TransportStats(
+  const socketwire::ShardedConnectionStats& sharded) {
+  netbench::TransportStats stats;
+  stats.rttMs = sharded.rttMs;
+  stats.LostPackets = sharded.lostPackets;
+  stats.inflightPackets = sharded.inflightPackets;
+  stats.sendWindow = sharded.sendWindow;
+  stats.deadlineSendDrops = sharded.deadlineSendDrops;
+  stats.deadlineReceiveDrops = sharded.deadlineReceiveDrops;
+  stats.deadlineRetriesPrevented = sharded.deadlineRetriesPrevented;
+  stats.deadlineExpiredFragmentGroups = sharded.deadlineExpiredFragmentGroups;
+  return stats;
+}
+
 }  // namespace
 
 int main(int argc, const char** argv) {
-  auto options = netbench::parseOptions(argc, argv);
+  auto options = netbench::ParseOptions(argc, argv);
   netbench::AppStats stats;
   netbench::MetricsWriter metrics(options, "server");
 
+  if (options.serverWorkers > 1) {
+    std::mutex stats_mutex;
+    socketwire::ShardedConnectionManagerConfig server_cfg;
+    server_cfg.port = options.port;
+    server_cfg.workerCount = static_cast<std::uint32_t>(options.serverWorkers);
+    server_cfg.connection.connection = Config();
+    const int capacity =
+      options.serverMaxClients > 0 ? options.serverMaxClients : options.clients;
+    const int per_worker_capacity =
+      (capacity + options.serverWorkers - 1) / options.serverWorkers;
+    server_cfg.connection.maxClients =
+      static_cast<std::uint32_t>(std::max(per_worker_capacity, 1024));
+    server_cfg.connection.maxHandshakesPerSecond = 0;
+
+    socketwire::ShardedConnectionManager server(server_cfg);
+    server.SetPacketCallback(
+      [&](socketwire::ShardedClientHandle,
+          socketwire::ConnectionManager::RemoteClient& client, std::uint8_t,
+          const void* data, std::size_t size, bool) {
+        netbench::PacketHeader header;
+        if (!netbench::ParseHeader(data, size, header)) {
+          const std::scoped_lock lock(stats_mutex);
+          stats.malformedPackets += 1;
+          return;
+        }
+        if (!netbench::ValidPayload(header, data, size)) {
+          const std::scoped_lock lock(stats_mutex);
+          stats.corruptedPackets += 1;
+          return;
+        }
+
+        const auto bucket = netbench::BucketForMode(header.mode);
+        const bool sent = client.connection != nullptr &&
+                          SendEcho(*client.connection, header, data, size);
+        const std::scoped_lock lock(stats_mutex);
+        stats.NoteEchoed(bucket, size);
+        if (sent) {
+          stats.NoteSent(bucket, size);
+        } else {
+          stats.sendFailures += 1;
+        }
+      });
+
+    if (!server.Start()) {
+      metrics.Finish(stats, {.clientsRequested = options.clients,
+                             .clientsCreated = 0,
+                             .connectedClients = 0,
+                             .serverWorkers = options.serverWorkers,
+                             .reusePort = true,
+                             .status = "bind_failed"});
+      return 1;
+    }
+
+    while (!metrics.Done()) {
+      const auto loop_start = netbench::Clock::now();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      (void)server.DrainEvents();
+      const auto sharded = server.SnapshotStats();
+
+      const auto loop_end = netbench::Clock::now();
+      const std::scoped_lock lock(stats_mutex);
+      stats.NoteUpdateMs(
+        static_cast<double>(
+          std::chrono::duration_cast<std::chrono::microseconds>(loop_end -
+                                                                loop_start)
+            .count()) /
+        1000.0);
+      metrics.MaybeWriteSample(
+        stats,
+        {.clientsRequested = options.clients,
+         .clientsCreated = static_cast<int>(sharded.totalClients),
+         .connectedClients = static_cast<int>(sharded.connectedClients),
+         .serverWorkers = options.serverWorkers,
+         .reusePort = server.ReusePortEnabled(),
+         .workerConnectedMin = static_cast<int>(sharded.workerConnectedMin),
+         .workerConnectedMax = static_cast<int>(sharded.workerConnectedMax),
+         .workerUpdateMsAvg = sharded.workerUpdateMsAvg,
+         .workerUpdateMsMax = sharded.workerUpdateMsMax,
+         .status = "running",
+         .transport = TransportStats(sharded)});
+    }
+
+    const auto sharded = server.SnapshotStats();
+    {
+      const std::scoped_lock lock(stats_mutex);
+      metrics.Finish(
+        stats,
+        {.clientsRequested = options.clients,
+         .clientsCreated = static_cast<int>(sharded.totalClients),
+         .connectedClients = static_cast<int>(sharded.connectedClients),
+         .serverWorkers = options.serverWorkers,
+         .reusePort = server.ReusePortEnabled(),
+         .workerConnectedMin = static_cast<int>(sharded.workerConnectedMin),
+         .workerConnectedMax = static_cast<int>(sharded.workerConnectedMax),
+         .workerUpdateMsAvg = sharded.workerUpdateMsAvg,
+         .workerUpdateMsMax = sharded.workerUpdateMsMax,
+         .status = "ok",
+         .transport = TransportStats(sharded)});
+    }
+    server.Stop();
+    return 0;
+  }
+
   auto socket = socketwire_examples::CreateUdpSocket(options.port);
   if (socket == nullptr) {
-    metrics.finish(stats,
-                   {.clientsRequested = options.clients,
-                    .clientsCreated = 0,
-                    .connectedClients = 0,
-                    .status = "bind_failed"});
+    metrics.Finish(stats, {.clientsRequested = options.clients,
+                           .clientsCreated = 0,
+                           .connectedClients = 0,
+                           .status = "bind_failed"});
     return 1;
   }
 
@@ -113,31 +228,32 @@ int main(int argc, const char** argv) {
   hub.SetPacketCallback(
     [&](auto& client, std::uint8_t, const void* data, std::size_t size, bool) {
       netbench::PacketHeader header;
-      if (!netbench::parseHeader(data, size, header)) {
+      if (!netbench::ParseHeader(data, size, header)) {
         stats.malformedPackets += 1;
         return;
       }
-      if (!netbench::validPayload(header, data, size)) {
+      if (!netbench::ValidPayload(header, data, size)) {
         stats.corruptedPackets += 1;
         return;
       }
 
-      const auto bucket = netbench::bucketForMode(header.mode);
-      stats.noteEchoed(bucket, size);
-      if (SendEcho(client, header, data, size)) {
-        stats.noteSent(bucket, size);
+      const auto bucket = netbench::BucketForMode(header.mode);
+      stats.NoteEchoed(bucket, size);
+      if (client.connection != nullptr &&
+          SendEcho(*client.connection, header, data, size)) {
+        stats.NoteSent(bucket, size);
       } else {
         stats.sendFailures += 1;
       }
     });
 
-  while (!metrics.done()) {
+  while (!metrics.Done()) {
     const auto loop_start = netbench::Clock::now();
     hub.Poll();
     hub.Update();
 
     const auto clients = hub.Clients();
-    metrics.maybeWriteSample(
+    metrics.MaybeWriteSample(
       stats, {.clientsRequested = options.clients,
               .clientsCreated = static_cast<int>(clients.size()),
               .connectedClients = static_cast<int>(clients.size()),
@@ -145,7 +261,7 @@ int main(int argc, const char** argv) {
               .transport = TransportStats(clients)});
 
     const auto loop_end = netbench::Clock::now();
-    stats.noteUpdateMs(
+    stats.NoteUpdateMs(
       static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
                             loop_end - loop_start)
                             .count()) /
@@ -154,7 +270,7 @@ int main(int argc, const char** argv) {
   }
 
   const auto clients = hub.Clients();
-  metrics.finish(stats, {.clientsRequested = options.clients,
+  metrics.Finish(stats, {.clientsRequested = options.clients,
                          .clientsCreated = static_cast<int>(clients.size()),
                          .connectedClients = static_cast<int>(clients.size()),
                          .status = "ok",
