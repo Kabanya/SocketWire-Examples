@@ -264,6 +264,13 @@ int main(int argc, const char** argv) {
 
   if (!bench_options.enabled) SetTargetFPS(60);
 
+  const auto lobby_address =
+    socketwire_examples::ResolveAddress(bench_options.host);
+  if (!lobby_address) {
+    std::println("cannot resolve host '{}'", bench_options.host);
+    return 1;
+  }
+
   auto lobby_socket = socketwire_examples::CreateUdpSocket(0);
   if (lobby_socket == nullptr) return 1;
 
@@ -274,9 +281,7 @@ int main(int argc, const char** argv) {
   ClientState state;
   ClientHandler lobby_handler(state, ConnectionTarget::kLobby);
   lobby_connection.SetHandler(&lobby_handler);
-  lobby_connection.Connect(
-    socketwire_examples::ResolveAddress(bench_options.host),
-    connect_lobby_port);
+  lobby_connection.Connect(*lobby_address, connect_lobby_port);
 
   std::unique_ptr<socketwire::ISocket> game_socket;
   std::unique_ptr<socketwire::ReliableConnection> game_connection;
@@ -304,14 +309,20 @@ int main(int argc, const char** argv) {
     if (!state.pendingGameHost.empty() && game_connection == nullptr) {
       game_socket = socketwire_examples::CreateUdpSocket(0);
       if (game_socket != nullptr) {
+        const auto game_address =
+          socketwire_examples::ResolveAddress(state.pendingGameHost);
+        if (!game_address) {
+          state.gameServerStatus =
+            "Cannot resolve game server " + state.pendingGameHost;
+          state.pendingGameHost.clear();
+          continue;
+        }
         game_connection = std::make_unique<socketwire::ReliableConnection>(
           game_socket.get(), cfg);
         game_handler =
           std::make_unique<ClientHandler>(state, ConnectionTarget::kGame);
         game_connection->SetHandler(game_handler.get());
-        game_connection->Connect(
-          socketwire_examples::ResolveAddress(state.pendingGameHost),
-          state.pendingGamePort);
+        game_connection->Connect(*game_address, state.pendingGamePort);
       } else {
         state.gameServerStatus = "Cannot connect to game server";
       }

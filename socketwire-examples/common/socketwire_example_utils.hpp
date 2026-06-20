@@ -14,6 +14,7 @@
 #include "i_socket.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socket_resolver.hpp"
 
 namespace socketwire_examples {
 
@@ -105,7 +106,7 @@ inline std::unique_ptr<socketwire::ISocket> CreateUdpSocket(
     return nullptr;
   }
 
-  if (socket->Bind(socketwire::SocketConstants::Any(), port) !=
+  if (socket->Bind(socketwire::socket_constants::Any(), port) !=
       socketwire::SocketError::kNone) {
     std::println("Cannot bind UDP socket to port {}",
                  static_cast<unsigned>(port));
@@ -115,12 +116,15 @@ inline std::unique_ptr<socketwire::ISocket> CreateUdpSocket(
   return socket;
 }
 
-inline socketwire::SocketAddress ResolveAddress(const std::string& host) {
-  if (host == "localhost") return socketwire::SocketConstants::Loopback();
+inline std::optional<socketwire::SocketAddress> ResolveAddress(
+  std::string_view host,
+  socketwire::AddressFamily family = socketwire::AddressFamily::kIPv4) {
+  if (host.empty()) return std::nullopt;
 
-  const std::optional<socketwire::SocketAddress> parsed =
-    socketwire::SocketConstants::TryFromString(host.c_str());
-  return parsed.value_or(socketwire::SocketConstants::Loopback());
+  const socketwire::ResolveHostResult result =
+    socketwire::ResolveHost(host, 0, family);
+  if (result.Failed() || result.addresses.empty()) return std::nullopt;
+  return result.addresses.front();
 }
 
 inline void WriteString(socketwire::BitStream& stream,

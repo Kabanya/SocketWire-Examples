@@ -24,7 +24,7 @@ int main(int argc, const char** argv) {
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
-      socket->Bind(SocketConstants::Any(), port) != SocketError::kNone) {
+      socket->Bind(socket_constants::Any(), port) != SocketError::kNone) {
     std::println("Cannot create server socket");
     return 1;
   }

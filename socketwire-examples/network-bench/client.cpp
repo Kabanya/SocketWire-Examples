@@ -233,6 +233,17 @@ int main(int argc, const char** argv) {
   netbench::AppStats stats;
 
   const auto server_address = socketwire_examples::ResolveAddress(options.host);
+  if (!server_address) {
+    std::cerr << "cannot resolve host '" << options.host << "'\n";
+    stats.connectFailures = static_cast<std::uint64_t>(options.clients);
+    netbench::MetricsWriter metrics(options, "client");
+    metrics.Finish(stats, {.clientsRequested = options.clients,
+                           .clientsCreated = 0,
+                           .connectedClients = 0,
+                           .status = "resolve_failed"});
+    return 1;
+  }
+
   std::vector<std::unique_ptr<ClientState>> clients;
   clients.reserve(static_cast<std::size_t>(options.clients));
 
@@ -251,7 +262,7 @@ int main(int argc, const char** argv) {
       std::make_unique<socketwire::ReliableConnection>(client->socket.get(),
                                                        cfg);
     client->connection->SetHandler(&client->handler);
-    if (!client->connection->Connect(server_address, options.port)) {
+    if (!client->connection->Connect(*server_address, options.port)) {
       stats.connectFailures += 1;
     }
     client->nextConnectAttempt =
@@ -272,7 +283,7 @@ int main(int argc, const char** argv) {
       DrainSocket(*client);
       if (!client->handler.connected &&
           loop_start >= client->nextConnectAttempt) {
-        if (!client->connection->Connect(server_address, options.port)) {
+        if (!client->connection->Connect(*server_address, options.port)) {
           stats.connectFailures += 1;
         }
         client->nextConnectAttempt =

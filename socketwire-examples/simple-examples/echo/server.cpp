@@ -48,7 +48,7 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  SocketAddress const bind_addr = SocketConstants::Any();
+  SocketAddress const bind_addr = socket_constants::Any();
   if (server->Bind(bind_addr, port) != SocketError::kNone) {
     std::cout << "Bind failed\n";
     return 1;

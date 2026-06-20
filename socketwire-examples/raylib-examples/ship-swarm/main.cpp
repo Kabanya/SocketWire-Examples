@@ -334,6 +334,11 @@ int main(int argc, const char** argv) {
 
   const ClientEndpoint endpoint =
     ResolveClientEndpoint(argc, argv, bench_options);
+  const auto server_address = socketwire_examples::ResolveAddress(endpoint.host);
+  if (!server_address) {
+    std::println("cannot resolve host '{}'", endpoint.host);
+    return 1;
+  }
 
   auto socket = socketwire_examples::CreateUdpSocket(0);
   if (socket == nullptr) return 1;
@@ -343,8 +348,7 @@ int main(int argc, const char** argv) {
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.SetHandler(&handler);
-  connection.Connect(socketwire_examples::ResolveAddress(endpoint.host),
-                     endpoint.port);
+  connection.Connect(*server_address, endpoint.port);
   std::println("ship-swarm client connecting to {}:{}", endpoint.host,
                static_cast<unsigned>(endpoint.port));
 

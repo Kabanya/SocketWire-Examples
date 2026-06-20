@@ -16,6 +16,9 @@ cmake -S . -B build
 cmake --build build
 ```
 
+When `../SocketWire` exists next to this repository, CMake uses that local
+checkout so examples can build against in-development SocketWire APIs.
+
 ## Prerequisites
 - C++ compiler with C++23 support
 - CMake 3.28 or newer

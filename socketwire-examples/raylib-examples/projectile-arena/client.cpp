@@ -172,6 +172,12 @@ int main(int argc, const char** argv) {
                           : socketwire_examples::PortFromArgsOrEnv(
                               argc, argv, 1, "SOCKETWIRE_PROJECTILE_ARENA_PORT",
                               projectile_arena::kKPort);
+  const auto server_address =
+    socketwire_examples::ResolveAddress(bench_options.host);
+  if (!server_address) {
+    std::println("cannot resolve host '{}'", bench_options.host);
+    return 1;
+  }
 
   InitializeSockets();
   auto* factory = SocketFactoryRegistry::GetFactory();
@@ -182,7 +188,7 @@ int main(int argc, const char** argv) {
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
-      socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone) {
+      socket->Bind(socket_constants::Any(), 0) != SocketError::kNone) {
     std::println("Cannot create projectile-arena client socket");
     return 1;
   }
@@ -193,9 +199,7 @@ int main(int argc, const char** argv) {
   ClientState state;
   ClientHandler handler(state);
   connection.SetHandler(&handler);
-  const auto server_address =
-    socketwire_examples::ResolveAddress(bench_options.host);
-  connection.Connect(server_address, port);
+  connection.Connect(*server_address, port);
   auto next_connect_attempt =
     std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
 
@@ -214,7 +218,7 @@ int main(int argc, const char** argv) {
 
     if (!state.connected &&
         std::chrono::steady_clock::now() >= next_connect_attempt) {
-      connection.Connect(server_address, port);
+      connection.Connect(*server_address, port);
       next_connect_attempt =
         std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
     }

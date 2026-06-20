@@ -27,7 +27,7 @@ std::string ClientToString(const Client& client) {
   // Convert IPv4 address from host order to dotted decimal
   uint32_t const host_addr = client.addr.ipv4.hostOrderAddress;
   char buf[16];  // INET_ADDRSTRLEN
-  SocketConstants::FormatIPv4(host_addr, buf, sizeof(buf));
+  socket_constants::FormatIPv4(host_addr, buf, sizeof(buf));
   return std::string(buf) + ":" + std::to_string(client.port);
 }
 
@@ -310,7 +310,7 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  SocketAddress const bind_addr = SocketConstants::Any();
+  SocketAddress const bind_addr = socket_constants::Any();
   if (server_socket->Bind(bind_addr, port) != SocketError::kNone) {
     std::println("cannot bind socket");
     return 1;

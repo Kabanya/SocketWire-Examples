@@ -103,6 +103,12 @@ int main(int argc, const char** argv) {
       ? bench_options.port
       : socketwire_examples::PortFromArgsOrEnv(
           argc, argv, 1, "SOCKETWIRE_CIPHER_SHIPS_PORT", 10131);
+  const auto server_address =
+    socketwire_examples::ResolveAddress(bench_options.host);
+  if (!server_address) {
+    std::println("cannot resolve host '{}'", bench_options.host);
+    return 1;
+  }
 
   auto socket = socketwire_examples::CreateUdpSocket(0);
   if (socket == nullptr) return 1;
@@ -112,8 +118,7 @@ int main(int argc, const char** argv) {
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.SetHandler(&handler);
-  connection.Connect(socketwire_examples::ResolveAddress(bench_options.host),
-                     connect_port);
+  connection.Connect(*server_address, connect_port);
 
   int width = 600;
   int height = 600;

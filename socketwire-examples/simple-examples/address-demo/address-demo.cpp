@@ -1,19 +1,23 @@
 #include <array>
 #include <chrono>
-#include <cstdio>
 #include <cstring>
+#include <future>
 #include <print>
+#include <string>
 #include <thread>
+#include <utility>
 
 #include "i_socket.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
+#include "socket_resolver.hpp"
+#include "thread_pool.hpp"
 
 using namespace socketwire;  // NOLINT
 
 static void PrintIpv4(const char* text, std::uint32_t value) {
   char buffer[16]{};
-  if (SocketConstants::FormatIPv4(value, buffer, sizeof(buffer))) {
+  if (socket_constants::FormatIPv4(value, buffer, sizeof(buffer))) {
     std::println("{}{}", text, buffer);
   }
 }
@@ -22,8 +26,75 @@ static void PrintIpv6(const char* text, const SocketAddress& address) {
   if (!address.isIPv6) return;
 
   const auto value =
-    SocketConstants::FormatIPv6String(address.ipv6.bytes, address.ipv6.scopeId);
+    socket_constants::FormatIPv6String(address.ipv6.bytes, address.ipv6.scopeId);
   std::println("{}{}", text, value);
+}
+
+static void PrintAddress(const char* text, const SocketAddress& address) {
+  if (address.isIPv6) {
+    PrintIpv6(text, address);
+    return;
+  }
+  PrintIpv4(text, address.ipv4.hostOrderAddress);
+}
+
+static void PrintResolveResult(const char* text,
+                               const ResolveHostResult& result) {
+  if (result.Failed()) {
+    std::println("{}failed: {}", text, ToString(result.error));
+    return;
+  }
+
+  std::println("{}{} address(es)", text, result.addresses.size());
+  for (const SocketAddress& address : result.addresses) {
+    PrintAddress("  -> ", address);
+  }
+}
+
+static void RunResolverDemos() {
+  PrintResolveResult("ResolveHost(\"localhost\", IPv4) -> ",
+                     ResolveHost("localhost", 0, AddressFamily::kIPv4));
+
+  ThreadPool pool(1);
+  pool.Start();
+
+  std::promise<ResolveHostResult> promise;
+  auto future = promise.get_future();
+  const bool submitted = ResolveHostAsync(
+    pool, "localhost", 0, AddressFamily::kIPv4,
+    [&promise](ResolveHostResult result) { promise.set_value(std::move(result)); });
+
+  if (!submitted) {
+    std::println("ResolveHostAsync(\"localhost\", IPv4) -> submit failed");
+  } else if (future.wait_for(std::chrono::seconds(2)) ==
+             std::future_status::ready) {
+    PrintResolveResult("ResolveHostAsync(\"localhost\", IPv4) -> ",
+                       future.get());
+  } else {
+    std::println("ResolveHostAsync(\"localhost\", IPv4) -> timeout");
+  }
+
+  pool.Stop();
+}
+
+static void RunInterfaceDemo() {
+  const auto result = ListNetworkInterfaces();
+  if (result.Failed()) {
+    std::println("ListNetworkInterfaces() -> failed: {}",
+                 ToString(result.error));
+    return;
+  }
+
+  std::println("ListNetworkInterfaces() -> {} interface(s)",
+               result.interfaces.size());
+  for (const NetworkInterface& iface : result.interfaces) {
+    std::println("  {} index={} up={} loopback={} multicast={}", iface.name,
+                 iface.index, iface.isUp, iface.isLoopback,
+                 iface.supportsMulticast);
+    for (const SocketAddress& address : iface.addresses) {
+      PrintAddress("    ", address);
+    }
+  }
 }
 
 static void RunIpv6LoopbackProbe(ISocketFactory& factory) {
@@ -36,7 +107,7 @@ static void RunIpv6LoopbackProbe(ISocketFactory& factory) {
     return;
   }
 
-  const SocketAddress loopback6 = SocketConstants::LoopbackIPv6();
+  const SocketAddress loopback6 = socket_constants::LoopbackIPv6();
   const auto bind_error = receiver->Bind(loopback6, 0);
   if (bind_error != SocketError::kNone) {
     std::println("IPv6 probe: bind(::1) failed: {}",
@@ -46,7 +117,7 @@ static void RunIpv6LoopbackProbe(ISocketFactory& factory) {
 
   auto sender = factory.CreateUdpSocket(cfg);
   if (sender == nullptr ||
-      sender->Bind(SocketConstants::AnyIPv6(), 0) != SocketError::kNone) {
+      sender->Bind(socket_constants::AnyIPv6(), 0) != SocketError::kNone) {
     std::println("IPv6 probe: cannot create sender socket");
     return;
   }
@@ -82,27 +153,35 @@ int main() {
   InitializeSockets();
 
   std::uint32_t parsed4 = 0;
-  if (SocketConstants::ParseIPv4("127.0.0.1", parsed4)) {
+  if (socket_constants::ParseIPv4("127.0.0.1", parsed4)) {
     PrintIpv4("parseIPv4(\"127.0.0.1\") -> ", parsed4);
   }
 
   std::array<std::uint8_t, 16> parsed6{};
   std::uint32_t scope_id = 0;
-  if (SocketConstants::ParseIPv6("::1", parsed6, scope_id)) {
+  if (socket_constants::ParseIPv6("::1", parsed6, scope_id)) {
     std::println("parseIPv6(\"::1\") -> {}",
-                 SocketConstants::FormatIPv6String(parsed6, scope_id));
+                  socket_constants::FormatIPv6String(parsed6, scope_id));
   }
 
-  if (const auto address = SocketConstants::TryFromString("192.168.10.42")) {
+  if (socket_constants::ParseIPv6("fe80::1%4", parsed6, scope_id)) {
+    std::println("parseIPv6(\"fe80::1%4\") -> {}",
+                  socket_constants::FormatIPv6String(parsed6, scope_id));
+  }
+
+  if (const auto address = socket_constants::TryFromString("192.168.10.42")) {
     PrintIpv4("tryFromString IPv4 -> ", address->ipv4.hostOrderAddress);
   }
 
-  if (const auto address = SocketConstants::TryFromString("::1")) {
+  if (const auto address = socket_constants::TryFromString("::1")) {
     PrintIpv6("tryFromString IPv6 -> ", *address);
   }
 
-  PrintIpv6("SocketConstants::LoopbackIPv6() -> ",
-            SocketConstants::LoopbackIPv6());
+  PrintIpv6("socket_constants::LoopbackIPv6() -> ",
+            socket_constants::LoopbackIPv6());
+
+  RunResolverDemos();
+  RunInterfaceDemo();
 
   auto* factory = SocketFactoryRegistry::GetFactory();
   if (factory == nullptr) {
@@ -114,7 +193,7 @@ int main() {
   dual_stack.enableIPv6 = true;
   auto socket = factory->CreateUdpSocket(dual_stack);
   if (socket != nullptr &&
-      socket->Bind(SocketConstants::AnyIPv6(), 0) == SocketError::kNone) {
+      socket->Bind(socket_constants::AnyIPv6(), 0) == SocketError::kNone) {
     std::println("Dual-stack-style UDP socket bound on port {}",
                  socket->LocalPort());
   } else {

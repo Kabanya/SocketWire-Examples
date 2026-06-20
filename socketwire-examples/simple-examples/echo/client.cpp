@@ -49,10 +49,10 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  SocketAddress const bind_addr = SocketConstants::Any();
+  SocketAddress const bind_addr = socket_constants::Any();
   client->Bind(bind_addr, 0);
 
-  SocketAddress const dest = SocketConstants::Loopback();
+  SocketAddress const dest = socket_constants::Loopback();
 
   std::string const msg = "Hello from use case of Client from Socket class!";
   client->SendTo(msg.c_str(), msg.size(), dest, port);

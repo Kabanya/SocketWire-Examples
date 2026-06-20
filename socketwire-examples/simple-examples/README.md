@@ -4,20 +4,20 @@ Small focused examples for learning one SocketWire feature at a time.
 
 ## Examples
 
-| Directory | Targets | Demonstrates |
-| --- | --- | --- |
-| `header-demos` | `bitstream-demo`, `constants-demo` | Basic `BitStream` usage and socket/address constants. |
-| `address-demo` | `address-demo` | IPv4/IPv6 parsing, formatting, `TryFromString`, `LoopbackIPv6`, and a local IPv6 probe. |
-| `safe-bitstream-demo` | `safe-bitstream-demo` | `BitStream::try_read*` with `std::expected` and malformed packet handling. |
-| `echo` | `echo-server`, `echo-client` | Minimal UDP socket send/receive. |
-| `math-duel` | `math-duel-server`, `math-duel-client` | Console multiplayer flow ported from `MIPT-networked/w1`. |
-| `packet-stream` | `packet-stream-server`, `packet-stream-client` | Reliable connection packet stream ported from `MIPT-networked/w3`. |
-| `channels-demo` | `channels-demo-server`, `channels-demo-client` | Reliable commands on channel 0, unreliable movement and snapshots on channel 1. |
-| `large-message-demo` | `large-message-demo-server`, `large-message-demo-client` | Reliable fragmentation/reassembly for payloads larger than `maxPacketSize`. |
-| `stats-window-demo` | `stats-window-demo-server`, `stats-window-demo-client` | Send window limits, RTT, in-flight count, and packet counters. |
-| `crypto-handshake-demo` | `crypto-handshake-demo` | Minimal crypto handshake and AEAD round trip, with graceful no-libsodium fallback. |
-| `thread-pool-demo` | `thread-pool-demo` | Direct `ThreadPool` work and owner-thread dispatch with `TaskQueue`. |
-| `emscripten-websocket-demo` | `emscripten-websocket-demo` | Browser WebSocket client path backed by `CreateEmscriptenWebSocketClient`. |
+| Directory | Targets | Sources | Demonstrates |
+| --- | --- | --- | --- |
+| `header-demos` | `bitstream-demo`, `constants-demo` | [bitstream-demo.cpp](header-demos/bitstream-demo.cpp), [constants-demo.cpp](header-demos/constants-demo.cpp) | Basic `BitStream` usage and socket/address constants. |
+| `address-demo` | `address-demo` | [address-demo.cpp](address-demo/address-demo.cpp) | IPv4/IPv6 parsing, DNS resolve, async resolve, local interfaces, and a local IPv6 probe. |
+| `safe-bitstream-demo` | `safe-bitstream-demo` | [safe-bitstream-demo.cpp](safe-bitstream-demo/safe-bitstream-demo.cpp) | `BitStream::try_read*` with `std::expected` and malformed packet handling. |
+| `echo` | `echo-server`, `echo-client` | [server.cpp](echo/server.cpp), [client.cpp](echo/client.cpp) | Minimal UDP socket send/receive. |
+| `math-duel` | `math-duel-server`, `math-duel-client` | [server.cpp](math-duel/server.cpp), [server.hpp](math-duel/server.hpp), [client.cpp](math-duel/client.cpp), [client.hpp](math-duel/client.hpp) | Console multiplayer flow ported from `MIPT-networked/w1`. |
+| `packet-stream` | `packet-stream-server`, `packet-stream-client` | [server.cpp](packet-stream/server.cpp), [client.cpp](packet-stream/client.cpp) | Reliable connection packet stream ported from `MIPT-networked/w3`. |
+| `channels-demo` | `channels-demo-server`, `channels-demo-client` | [server.cpp](channels-demo/server.cpp), [client.cpp](channels-demo/client.cpp), [protocol.hpp](channels-demo/protocol.hpp) | Reliable commands on channel 0, unreliable movement and snapshots on channel 1. |
+| `large-message-demo` | `large-message-demo-server`, `large-message-demo-client` | [server.cpp](large-message-demo/server.cpp), [client.cpp](large-message-demo/client.cpp), [protocol.hpp](large-message-demo/protocol.hpp) | Reliable fragmentation/reassembly for payloads larger than `maxPacketSize`. |
+| `stats-window-demo` | `stats-window-demo-server`, `stats-window-demo-client` | [server.cpp](stats-window-demo/server.cpp), [client.cpp](stats-window-demo/client.cpp), [protocol.hpp](stats-window-demo/protocol.hpp) | Send window limits, RTT, in-flight count, and packet counters. |
+| `crypto-handshake-demo` | `crypto-handshake-demo` | [crypto-handshake-demo.cpp](crypto-handshake-demo/crypto-handshake-demo.cpp) | Minimal crypto handshake and AEAD round trip, with graceful no-libsodium fallback. |
+| `thread-pool-demo` | `thread-pool-demo` | [thread-pool-demo.cpp](thread-pool-demo/thread-pool-demo.cpp) | Direct `ThreadPool` work and owner-thread dispatch with `TaskQueue`. |
+| `emscripten-websocket-demo` | `emscripten-websocket-demo` | [client.cpp](emscripten-websocket-demo/client.cpp) | Browser WebSocket client path backed by `CreateEmscriptenWebSocketClient`. |
 
 ## Run Commands
 

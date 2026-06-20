@@ -48,7 +48,7 @@ int main(int argc, const char** argv) {
 
   auto socket = factory->CreateUdpSocket(SocketConfig{});
   if (socket == nullptr ||
-      socket->Bind(SocketConstants::Any(), 0) != SocketError::kNone) {
+      socket->Bind(socket_constants::Any(), 0) != SocketError::kNone) {
     std::println("Cannot create client socket");
     return 1;
   }
@@ -58,7 +58,7 @@ int main(int argc, const char** argv) {
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.SetHandler(&handler);
-  connection.Connect(SocketConstants::Loopback(), port);
+  connection.Connect(socket_constants::Loopback(), port);
 
   auto last_send = std::chrono::steady_clock::now();
   int counter = 0;

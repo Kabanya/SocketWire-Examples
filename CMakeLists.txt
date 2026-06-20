@@ -10,6 +10,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(socketwire LANGUAGES CXX)
+enable_testing()
 
 # comment if you want have a structure in build folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

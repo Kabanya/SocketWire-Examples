@@ -18,31 +18,31 @@ void DemoConstants() {
   PrintSectionHeader("IPv4 Address Constants");
 
   std::cout << "IPV4_ANY:       0x" << std::hex << std::setw(8)
-            << std::setfill('0') << SocketConstants::kIpV4Any << std::dec
+            << std::setfill('0') << socket_constants::kIpV4Any << std::dec
             << '\n';
   std::cout << "IPV4_LOOPBACK:  0x" << std::hex << std::setw(8)
-            << std::setfill('0') << SocketConstants::kIpV4Loopback << std::dec
+            << std::setfill('0') << socket_constants::kIpV4Loopback << std::dec
             << '\n';
   std::cout << "IPV4_BROADCAST: 0x" << std::hex << std::setw(8)
-            << std::setfill('0') << SocketConstants::kIpV4Broadcast << std::dec
+            << std::setfill('0') << socket_constants::kIpV4Broadcast << std::dec
             << '\n';
-  std::cout << "PORT_ANY:       " << SocketConstants::kPortAny << '\n';
+  std::cout << "PORT_ANY:       " << socket_constants::kPortAny << '\n';
 }
 
 void DemoFactoryMethods() {
   PrintSectionHeader("Factory Methods");
 
-  SocketAddress const any_addr = SocketConstants::Any();
-  SocketAddress const loopback_addr = SocketConstants::Loopback();
-  SocketAddress const broadcast_addr = SocketConstants::Broadcast();
+  SocketAddress const any_addr = socket_constants::Any();
+  SocketAddress const loopback_addr = socket_constants::Loopback();
+  SocketAddress const broadcast_addr = socket_constants::Broadcast();
 
-  std::cout << "SocketConstants::Any()       -> 0x" << std::hex << std::setw(8)
+  std::cout << "socket_constants::Any()       -> 0x" << std::hex << std::setw(8)
             << std::setfill('0') << any_addr.ipv4.hostOrderAddress << std::dec
             << '\n';
-  std::cout << "SocketConstants::Loopback()  -> 0x" << std::hex << std::setw(8)
+  std::cout << "socket_constants::Loopback()  -> 0x" << std::hex << std::setw(8)
             << std::setfill('0') << loopback_addr.ipv4.hostOrderAddress
             << std::dec << '\n';
-  std::cout << "SocketConstants::Broadcast() -> 0x" << std::hex << std::setw(8)
+  std::cout << "socket_constants::Broadcast() -> 0x" << std::hex << std::setw(8)
             << std::setfill('0') << broadcast_addr.ipv4.hostOrderAddress
             << std::dec << '\n';
 }
@@ -50,21 +50,21 @@ void DemoFactoryMethods() {
 void DemoFromOctets() {
   PrintSectionHeader("Creating Addresses from Octets");
 
-  SocketAddress const addr1 = SocketConstants::FromOctets(192, 168, 1, 1);
-  SocketAddress const addr2 = SocketConstants::FromOctets(10, 0, 0, 1);
-  SocketAddress const addr3 = SocketConstants::FromOctets(172, 16, 254, 100);
+  SocketAddress const addr1 = socket_constants::FromOctets(192, 168, 1, 1);
+  SocketAddress const addr2 = socket_constants::FromOctets(10, 0, 0, 1);
+  SocketAddress const addr3 = socket_constants::FromOctets(172, 16, 254, 100);
 
   char buffer[16];
 
-  SocketConstants::FormatIPv4(addr1.ipv4.hostOrderAddress, buffer,
+  socket_constants::FormatIPv4(addr1.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
   std::cout << "fromOctets(192, 168, 1, 1)   -> " << buffer << '\n';
 
-  SocketConstants::FormatIPv4(addr2.ipv4.hostOrderAddress, buffer,
+  socket_constants::FormatIPv4(addr2.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
   std::cout << "fromOctets(10, 0, 0, 1)      -> " << buffer << '\n';
 
-  SocketConstants::FormatIPv4(addr3.ipv4.hostOrderAddress, buffer,
+  socket_constants::FormatIPv4(addr3.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
   std::cout << "fromOctets(172, 16, 254, 100) -> " << buffer << '\n';
 }
@@ -78,7 +78,7 @@ void DemoParseIPv4() {
 
   for (const char* addr_str : test_addresses) {
     std::uint32_t addr = 0;
-    bool const success = SocketConstants::ParseIPv4(addr_str, addr);
+    bool const success = socket_constants::ParseIPv4(addr_str, addr);
 
     std::cout << std::left << std::setw(20) << addr_str << " -> ";
     if (success) {
@@ -107,7 +107,7 @@ void DemoFormatIPv4() {
     std::cout << "0x" << std::hex << std::setw(8) << std::setfill('0') << addr
               << std::dec << " -> ";
 
-    if (SocketConstants::FormatIPv4(addr, buffer, sizeof(buffer))) {
+    if (socket_constants::FormatIPv4(addr, buffer, sizeof(buffer))) {
       std::cout << buffer << '\n';
     } else {
       std::cout << "ERROR" << '\n';
@@ -123,8 +123,8 @@ void DemoFromString() {
   char buffer[16];
 
   for (const char* addr_str : addresses) {
-    SocketAddress const addr = SocketConstants::FromString(addr_str);
-    SocketConstants::FormatIPv4(addr.ipv4.hostOrderAddress, buffer,
+    SocketAddress const addr = socket_constants::FromString(addr_str);
+    socket_constants::FormatIPv4(addr.ipv4.hostOrderAddress, buffer,
                                 sizeof(buffer));
 
     std::cout << std::left << std::setw(20) << addr_str << " -> " << buffer
@@ -151,9 +151,9 @@ void DemoRealWorldUsage() {
   }
 
   // Bind to any interface on port 0 (OS chooses port)
-  SocketAddress const bind_addr = SocketConstants::Any();
+  SocketAddress const bind_addr = socket_constants::Any();
   SocketError const bind_result =
-    socket->Bind(bind_addr, SocketConstants::kPortAny);
+    socket->Bind(bind_addr, socket_constants::kPortAny);
 
   if (bind_result != SocketError::kNone) {
     std::cerr << "ERROR: Failed to bind socket!" << '\n';
@@ -163,7 +163,7 @@ void DemoRealWorldUsage() {
   std::uint16_t local_port = socket->LocalPort();
 
   char buffer[16];
-  SocketConstants::FormatIPv4(bind_addr.ipv4.hostOrderAddress, buffer,
+  socket_constants::FormatIPv4(bind_addr.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
 
   std::cout << "✓ Socket created successfully" << '\n';
@@ -174,8 +174,8 @@ void DemoRealWorldUsage() {
   std::cout << "\nPreparing to send to localhost:" << local_port << "..."
             << '\n';
 
-  SocketAddress const dest_addr = SocketConstants::Loopback();
-  SocketConstants::FormatIPv4(dest_addr.ipv4.hostOrderAddress, buffer,
+  SocketAddress const dest_addr = socket_constants::Loopback();
+  socket_constants::FormatIPv4(dest_addr.ipv4.hostOrderAddress, buffer,
                               sizeof(buffer));
 
   std::cout << "✓ Destination: " << buffer << ":" << local_port << '\n';
@@ -211,8 +211,8 @@ void DemoComparison() {
 
   std::cout << "\n--- AFTER (Cross-Platform) ---\n" << '\n';
   std::cout << "#include \"socket_constants.hpp\"" << '\n';
-  std::cout << "\nSocketAddress addr = SocketConstants::Any();" << '\n';
-  std::cout << "SocketAddress dest = SocketConstants::Loopback();" << '\n';
+  std::cout << "\nSocketAddress addr = socket_constants::Any();" << '\n';
+  std::cout << "SocketAddress dest = socket_constants::Loopback();" << '\n';
 
   std::cout << "\n✓ Cleaner code" << '\n';
   std::cout << "✓ No platform-specific #ifdef blocks" << '\n';

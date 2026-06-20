@@ -224,12 +224,6 @@ bool DrawButton(Rectangle bounds, const char* label) {
   return pressed;
 }
 
-std::optional<SocketAddress> ParseHost(const std::string& host) {
-  if (host.empty()) return std::nullopt;
-  if (host == "localhost") return SocketConstants::Loopback();
-  return SocketConstants::TryFromString(host.c_str());
-}
-
 Color PlayerColor(std::uint16_t id, std::uint16_t local_id) {
   if (id == local_id) return Color{20, 138, 220, 255};
   static constexpr Color kPalette[] = {
@@ -379,6 +373,10 @@ int main(int argc, const char** argv) {
                        std::to_string(bench_options.port), false, true, 5};
   const auto bench_server_address =
     socketwire_examples::ResolveAddress(bench_options.host);
+  if (bench_options.enabled && !bench_server_address) {
+    std::println("cannot resolve host '{}'", bench_options.host);
+    return 1;
+  }
   ClientState state;
   ScreenMode mode = ScreenMode::kConnect;
   std::unique_ptr<ReliableConnection> connection;
@@ -414,7 +412,7 @@ int main(int argc, const char** argv) {
   };
 
   if (bench_options.enabled) {
-    connect_to(bench_server_address, bench_options.port, bench_options.host);
+    connect_to(*bench_server_address, bench_options.port, bench_options.host);
   }
 
   while (bench_options.enabled ? !metrics.Done() : !WindowShouldClose()) {
@@ -439,7 +437,7 @@ int main(int argc, const char** argv) {
     if (mode == ScreenMode::kConnect) {
       if (bench_options.enabled &&
           std::chrono::steady_clock::now() >= next_connect_attempt) {
-        connect_to(bench_server_address, bench_options.port,
+        connect_to(*bench_server_address, bench_options.port,
                    bench_options.host);
       }
       if (!bench_options.enabled && IsKeyPressed(KEY_ENTER)) {
@@ -449,7 +447,7 @@ int main(int argc, const char** argv) {
       const auto now = std::chrono::steady_clock::now();
       if (bench_options.enabled && !state.connected &&
           now >= next_connect_attempt) {
-        connection->Connect(bench_server_address, bench_options.port);
+        connection->Connect(*bench_server_address, bench_options.port);
         next_connect_attempt = now + std::chrono::milliseconds(250);
       }
       if (state.connected && now >= next_join_attempt) {
@@ -562,7 +560,7 @@ int main(int argc, const char** argv) {
     if (!connect_requested) continue;
 
     const auto port = socketwire_examples::ParsePort(port_field.text.c_str());
-    const auto address = ParseHost(host_field.text);
+    const auto address = socketwire_examples::ResolveAddress(host_field.text);
     if (!port || !address) {
       state.status = "invalid host or port";
       continue;

@@ -111,13 +111,13 @@ int main(int argc, const char** argv) {
     return 1;
   }
 
-  SocketAddress const local_addr = SocketConstants::Any();
+  SocketAddress const local_addr = socket_constants::Any();
   if (client_socket->Bind(local_addr, 0) != SocketError::kNone) {
     std::println("Cannot bind socket");
     return 1;
   }
 
-  server_addr = SocketConstants::Loopback();
+  server_addr = socket_constants::Loopback();
 
   std::cout << "Client is using port: " << client_socket->LocalPort() << '\n';
 
