@@ -52,6 +52,8 @@ static void PrintResolveResult(const char* text,
 }
 
 static void RunResolverDemos() {
+  PrintResolveResult("ResolveHost(\"localhost\", Any) -> ",
+                     ResolveHost("localhost", 0, AddressFamily::kAny));
   PrintResolveResult("ResolveHost(\"localhost\", IPv4) -> ",
                      ResolveHost("localhost", 0, AddressFamily::kIPv4));
 

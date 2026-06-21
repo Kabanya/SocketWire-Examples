@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -125,9 +126,9 @@ int main(int argc, const char** argv) {
     server_cfg.connection.maxClients =
       static_cast<std::uint32_t>(std::max(per_worker_capacity, 1024));
     server_cfg.connection.maxHandshakesPerSecond = 0;
+    server_cfg.socket.enableIPv6 = true;
 
-    socketwire::ShardedConnectionManager server(server_cfg);
-    server.SetPacketCallback(
+    auto packet_callback =
       [&](socketwire::ShardedClientHandle,
           socketwire::ConnectionManager::RemoteClient& client, std::uint8_t,
           const void* data, std::size_t size, bool) {
@@ -153,9 +154,19 @@ int main(int argc, const char** argv) {
         } else {
           stats.sendFailures += 1;
         }
-      });
+      };
 
-    if (!server.Start()) {
+    auto server =
+      std::make_unique<socketwire::ShardedConnectionManager>(server_cfg);
+    server->SetPacketCallback(packet_callback);
+    if (!server->Start()) {
+      server_cfg.socket.enableIPv6 = false;
+      server =
+        std::make_unique<socketwire::ShardedConnectionManager>(server_cfg);
+      server->SetPacketCallback(packet_callback);
+    }
+
+    if (!server->IsRunning() && !server->Start()) {
       metrics.Finish(stats, {.clientsRequested = options.clients,
                              .clientsCreated = 0,
                              .connectedClients = 0,
@@ -168,8 +179,8 @@ int main(int argc, const char** argv) {
     while (!metrics.Done()) {
       const auto loop_start = netbench::Clock::now();
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      (void)server.DrainEvents();
-      const auto sharded = server.SnapshotStats();
+      (void)server->DrainEvents();
+      const auto sharded = server->SnapshotStats();
 
       const auto loop_end = netbench::Clock::now();
       const std::scoped_lock lock(stats_mutex);
@@ -185,7 +196,7 @@ int main(int argc, const char** argv) {
          .clientsCreated = static_cast<int>(sharded.totalClients),
          .connectedClients = static_cast<int>(sharded.connectedClients),
          .serverWorkers = options.serverWorkers,
-         .reusePort = server.ReusePortEnabled(),
+         .reusePort = server->ReusePortEnabled(),
          .workerConnectedMin = static_cast<int>(sharded.workerConnectedMin),
          .workerConnectedMax = static_cast<int>(sharded.workerConnectedMax),
          .workerUpdateMsAvg = sharded.workerUpdateMsAvg,
@@ -194,7 +205,7 @@ int main(int argc, const char** argv) {
          .transport = TransportStats(sharded)});
     }
 
-    const auto sharded = server.SnapshotStats();
+    const auto sharded = server->SnapshotStats();
     {
       const std::scoped_lock lock(stats_mutex);
       metrics.Finish(
@@ -203,7 +214,7 @@ int main(int argc, const char** argv) {
          .clientsCreated = static_cast<int>(sharded.totalClients),
          .connectedClients = static_cast<int>(sharded.connectedClients),
          .serverWorkers = options.serverWorkers,
-         .reusePort = server.ReusePortEnabled(),
+         .reusePort = server->ReusePortEnabled(),
          .workerConnectedMin = static_cast<int>(sharded.workerConnectedMin),
          .workerConnectedMax = static_cast<int>(sharded.workerConnectedMax),
          .workerUpdateMsAvg = sharded.workerUpdateMsAvg,
@@ -211,7 +222,7 @@ int main(int argc, const char** argv) {
          .status = "ok",
          .transport = TransportStats(sharded)});
     }
-    server.Stop();
+    server->Stop();
     return 0;
   }
 

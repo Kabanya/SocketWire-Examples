@@ -68,7 +68,8 @@ Most Raylib client/server demos use loopback by default. `persistent-arena` star
 
 ## Run Notes
 - Most examples use loopback by default; start the server first, then the client.
-- Clients that accept `--host` resolve IPv4 addresses, `localhost`, and DNS/mDNS names.
+- Clients that accept `--host` resolve IPv4/IPv6, `localhost`, and DNS/mDNS names in OS order.
+- Servers created through the shared helper try dual-stack bind first and fall back to IPv4.
 - `ship-swarm` uses UDP port `10133` by default. The client accepts `--host` and `--port`, or positional `host port`, for LAN runs.
 - `lobby-dots` uses lobby port `10887` and game-server port `10888`.
 - In `lobby-dots`, start `lobby-dots-lobby` and `lobby-dots-game-server`, then open `lobby-dots-client`; press Enter in the client window to start the game session.

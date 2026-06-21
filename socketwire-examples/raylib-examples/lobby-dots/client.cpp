@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <print>
 #include <sstream>
 #include <string>
@@ -264,9 +265,10 @@ int main(int argc, const char** argv) {
 
   if (!bench_options.enabled) SetTargetFPS(60);
 
-  const auto lobby_address =
-    socketwire_examples::ResolveAddress(bench_options.host);
-  if (!lobby_address) {
+  auto lobby_endpoint =
+    socketwire_examples::ResolveEndpoint(bench_options.host,
+                                         connect_lobby_port);
+  if (!lobby_endpoint) {
     std::println("cannot resolve host '{}'", bench_options.host);
     return 1;
   }
@@ -281,15 +283,24 @@ int main(int argc, const char** argv) {
   ClientState state;
   ClientHandler lobby_handler(state, ConnectionTarget::kLobby);
   lobby_connection.SetHandler(&lobby_handler);
-  lobby_connection.Connect(*lobby_address, connect_lobby_port);
+  if (!socketwire_examples::ConnectNextAddress(lobby_connection,
+                                               *lobby_endpoint,
+                                               connect_lobby_port)) {
+    std::println("cannot connect to '{}'", bench_options.host);
+    return 1;
+  }
 
   std::unique_ptr<socketwire::ISocket> game_socket;
   std::unique_ptr<socketwire::ReliableConnection> game_connection;
   std::unique_ptr<ClientHandler> game_handler;
+  std::optional<socketwire_examples::ResolvedEndpoint> game_endpoint;
 
   auto last_fragmented_send_time = std::chrono::steady_clock::now();
   auto last_micro_send_time = last_fragmented_send_time;
   auto last_position_send_time = last_fragmented_send_time;
+  auto next_lobby_connect_attempt =
+    std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+  auto next_game_connect_attempt = next_lobby_connect_attempt;
 
   auto posx = static_cast<float>(GetRandomValue(100, 500));
   auto posy = static_cast<float>(GetRandomValue(100, 500));
@@ -303,15 +314,29 @@ int main(int argc, const char** argv) {
     const float dt = bench_options.enabled ? (1.f / 60.f) : GetFrameTime();
 
     const auto update_start = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    if (!state.connectedToLobby && now >= next_lobby_connect_attempt) {
+      (void)socketwire_examples::ConnectNextAddress(lobby_connection,
+                                                    *lobby_endpoint,
+                                                    connect_lobby_port);
+      next_lobby_connect_attempt = now + std::chrono::milliseconds(250);
+    }
+    if (game_connection != nullptr && !state.connectedToGameServer &&
+        game_endpoint && now >= next_game_connect_attempt) {
+      (void)socketwire_examples::ConnectNextAddress(*game_connection,
+                                                    *game_endpoint,
+                                                    state.pendingGamePort);
+      next_game_connect_attempt = now + std::chrono::milliseconds(250);
+    }
     lobby_connection.Update();
     if (game_connection != nullptr) game_connection->Update();
 
     if (!state.pendingGameHost.empty() && game_connection == nullptr) {
       game_socket = socketwire_examples::CreateUdpSocket(0);
       if (game_socket != nullptr) {
-        const auto game_address =
-          socketwire_examples::ResolveAddress(state.pendingGameHost);
-        if (!game_address) {
+        game_endpoint = socketwire_examples::ResolveEndpoint(
+          state.pendingGameHost, state.pendingGamePort);
+        if (!game_endpoint) {
           state.gameServerStatus =
             "Cannot resolve game server " + state.pendingGameHost;
           state.pendingGameHost.clear();
@@ -322,14 +347,16 @@ int main(int argc, const char** argv) {
         game_handler =
           std::make_unique<ClientHandler>(state, ConnectionTarget::kGame);
         game_connection->SetHandler(game_handler.get());
-        game_connection->Connect(*game_address, state.pendingGamePort);
+        (void)socketwire_examples::ConnectNextAddress(*game_connection,
+                                                      *game_endpoint,
+                                                      state.pendingGamePort);
+        next_game_connect_attempt =
+          std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
       } else {
         state.gameServerStatus = "Cannot connect to game server";
       }
       state.pendingGameHost.clear();
     }
-
-    const auto now = std::chrono::steady_clock::now();
 
     if (state.connectedToGameServer && game_connection != nullptr &&
         std::chrono::duration_cast<std::chrono::milliseconds>(

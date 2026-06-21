@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <utility>
 
 #include "i_socket.hpp"
 #include "netbench_common.hpp"
@@ -75,6 +76,7 @@ struct ClientState {
   std::uint32_t nextSequence = 0;
   std::uint8_t nextDeadlineMode = 0;
   std::array<netbench::ScheduledStream, 5> streams{};
+  socketwire_examples::ResolvedEndpoint endpoint{};
   netbench::Clock::time_point nextConnectAttempt{};
 };
 
@@ -232,8 +234,9 @@ int main(int argc, const char** argv) {
   const auto profile = netbench::ProfileByName(options.profile);
   netbench::AppStats stats;
 
-  const auto server_address = socketwire_examples::ResolveAddress(options.host);
-  if (!server_address) {
+  const auto server_endpoint =
+    socketwire_examples::ResolveEndpoint(options.host, options.port);
+  if (!server_endpoint) {
     std::cerr << "cannot resolve host '" << options.host << "'\n";
     stats.connectFailures = static_cast<std::uint64_t>(options.clients);
     netbench::MetricsWriter metrics(options, "client");
@@ -262,7 +265,10 @@ int main(int argc, const char** argv) {
       std::make_unique<socketwire::ReliableConnection>(client->socket.get(),
                                                        cfg);
     client->connection->SetHandler(&client->handler);
-    if (!client->connection->Connect(*server_address, options.port)) {
+    client->endpoint = *server_endpoint;
+    if (!socketwire_examples::ConnectNextAddress(*client->connection,
+                                                 client->endpoint,
+                                                 options.port)) {
       stats.connectFailures += 1;
     }
     client->nextConnectAttempt =
@@ -283,7 +289,9 @@ int main(int argc, const char** argv) {
       DrainSocket(*client);
       if (!client->handler.connected &&
           loop_start >= client->nextConnectAttempt) {
-        if (!client->connection->Connect(*server_address, options.port)) {
+        if (!socketwire_examples::ConnectNextAddress(*client->connection,
+                                                     client->endpoint,
+                                                     options.port)) {
           stats.connectFailures += 1;
         }
         client->nextConnectAttempt =
@@ -332,7 +340,7 @@ int main(int argc, const char** argv) {
   std::string_view status = "ok";
   if (clients.empty()) {
     status = "no_clients";
-  } else if (static_cast<int>(clients.size()) < options.clients) {
+  } else if (std::cmp_less(clients.size(), options.clients)) {
     status = "partial";
   }
 

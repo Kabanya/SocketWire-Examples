@@ -9,13 +9,11 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include "raylib.h"
 
 #include "benchmark_utils.hpp"
-#include "i_socket.hpp"
 #include "protocol.hpp"
-#include "raylib.h"
 #include "reliable_connection.hpp"
-#include "socket_constants.hpp"
 #include "socketwire_example_utils.hpp"
 
 using namespace socketwire;  // NOLINT
@@ -371,9 +369,10 @@ int main(int argc, const char** argv) {
                        bench_options.host, true, false, 64};
   TextField port_field{Rectangle{280.0f, 285.0f, 160.0f, 48.0f},
                        std::to_string(bench_options.port), false, true, 5};
-  const auto bench_server_address =
-    socketwire_examples::ResolveAddress(bench_options.host);
-  if (bench_options.enabled && !bench_server_address) {
+  const auto bench_server_endpoint =
+    socketwire_examples::ResolveEndpoint(bench_options.host,
+                                         bench_options.port);
+  if (bench_options.enabled && !bench_server_endpoint) {
     std::println("cannot resolve host '{}'", bench_options.host);
     return 1;
   }
@@ -381,13 +380,16 @@ int main(int argc, const char** argv) {
   ScreenMode mode = ScreenMode::kConnect;
   std::unique_ptr<ReliableConnection> connection;
   std::unique_ptr<ClientHandler> handler;
+  std::optional<socketwire_examples::ResolvedEndpoint> active_endpoint;
+  std::uint16_t active_port = bench_options.port;
   bool join_sent = false;
   std::uint32_t tick = 0;
   std::uint64_t bench_frame = 0;
   auto next_connect_attempt = std::chrono::steady_clock::now();
   auto next_join_attempt = std::chrono::steady_clock::now();
 
-  auto connect_to = [&](const SocketAddress& address, std::uint16_t port,
+  auto connect_to = [&](socketwire_examples::ResolvedEndpoint endpoint,
+                        std::uint16_t port,
                         const std::string& host_text) {
     ReliableConnectionConfig cfg;
     cfg.numChannels = 2;
@@ -396,7 +398,11 @@ int main(int argc, const char** argv) {
     handler = std::make_unique<ClientHandler>(state);
     connection = std::make_unique<ReliableConnection>(socket.get(), cfg);
     connection->SetHandler(handler.get());
-    if (!connection->Connect(address, port)) {
+    active_endpoint = std::move(endpoint);
+    active_port = port;
+    if (!socketwire_examples::ConnectNextAddress(*connection,
+                                                 *active_endpoint, port)) {
+      active_endpoint.reset();
       ResetToConnect(connection, handler, state, mode, join_sent,
                      "connect failed");
       return false;
@@ -412,7 +418,7 @@ int main(int argc, const char** argv) {
   };
 
   if (bench_options.enabled) {
-    connect_to(*bench_server_address, bench_options.port, bench_options.host);
+    connect_to(*bench_server_endpoint, bench_options.port, bench_options.host);
   }
 
   while (bench_options.enabled ? !metrics.Done() : !WindowShouldClose()) {
@@ -437,7 +443,7 @@ int main(int argc, const char** argv) {
     if (mode == ScreenMode::kConnect) {
       if (bench_options.enabled &&
           std::chrono::steady_clock::now() >= next_connect_attempt) {
-        connect_to(*bench_server_address, bench_options.port,
+        connect_to(*bench_server_endpoint, bench_options.port,
                    bench_options.host);
       }
       if (!bench_options.enabled && IsKeyPressed(KEY_ENTER)) {
@@ -445,9 +451,10 @@ int main(int argc, const char** argv) {
       }
     } else if (mode == ScreenMode::kConnecting && connection != nullptr) {
       const auto now = std::chrono::steady_clock::now();
-      if (bench_options.enabled && !state.connected &&
-          now >= next_connect_attempt) {
-        connection->Connect(*bench_server_address, bench_options.port);
+      if (!state.connected && active_endpoint && now >= next_connect_attempt) {
+        (void)socketwire_examples::ConnectNextAddress(*connection,
+                                                      *active_endpoint,
+                                                      active_port);
         next_connect_attempt = now + std::chrono::milliseconds(250);
       }
       if (state.connected && now >= next_join_attempt) {
@@ -560,13 +567,15 @@ int main(int argc, const char** argv) {
     if (!connect_requested) continue;
 
     const auto port = socketwire_examples::ParsePort(port_field.text.c_str());
-    const auto address = socketwire_examples::ResolveAddress(host_field.text);
-    if (!port || !address) {
+    auto endpoint = port ? socketwire_examples::ResolveEndpoint(
+                             host_field.text, *port)
+                         : std::nullopt;
+    if (!port || !endpoint) {
       state.status = "invalid host or port";
       continue;
     }
 
-    connect_to(*address, *port, host_field.text);
+    connect_to(*endpoint, *port, host_field.text);
   }
 
   if (connection != nullptr) connection->Disconnect();

@@ -380,9 +380,9 @@ int main(int argc, const char** argv) {
       ? bench_options.port
       : socketwire_examples::PortFromArgsOrEnv(
           argc, argv, 1, "SOCKETWIRE_PREDICTION_SHIPS_PORT", 10131);
-  const auto server_address =
-    socketwire_examples::ResolveAddress(bench_options.host);
-  if (!server_address) {
+  auto server_endpoint =
+    socketwire_examples::ResolveEndpoint(bench_options.host, connect_port);
+  if (!server_endpoint) {
     std::println("cannot resolve host '{}'", bench_options.host);
     return 1;
   }
@@ -395,7 +395,11 @@ int main(int argc, const char** argv) {
   socketwire::ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler(connection);
   connection.SetHandler(&handler);
-  connection.Connect(*server_address, connect_port);
+  if (!socketwire_examples::ConnectNextAddress(connection, *server_endpoint,
+                                               connect_port)) {
+    std::println("cannot connect to '{}'", bench_options.host);
+    return 1;
+  }
 
   int width = 600;
   int height = 600;
@@ -423,6 +427,8 @@ int main(int argc, const char** argv) {
   client_frame_counter = 0;
   bool sent_join = false;
   std::uint64_t bench_frame = 0;
+  auto next_connect_attempt =
+    std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
 
   while (bench_options.enabled ? !metrics.Done() : !WindowShouldClose()) {
     const auto frame_start = std::chrono::steady_clock::now();
@@ -431,6 +437,13 @@ int main(int argc, const char** argv) {
     accumulator += frame_time;
 
     const auto update_start = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    if (!handler.connected && now >= next_connect_attempt) {
+      (void)socketwire_examples::ConnectNextAddress(connection,
+                                                    *server_endpoint,
+                                                    connect_port);
+      next_connect_attempt = now + std::chrono::milliseconds(250);
+    }
     connection.Update();
     if (handler.connected && !sent_join) {
       SendJoin(&connection);

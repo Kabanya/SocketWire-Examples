@@ -8,11 +8,8 @@
 #include <vector>
 
 #include "benchmark_utils.hpp"
-#include "i_socket.hpp"
 #include "protocol.hpp"
 #include "server_connection_hub.hpp"
-#include "socket_constants.hpp"
-#include "socket_init.hpp"
 #include "socketwire_example_utils.hpp"
 
 using namespace socketwire;  // NOLINT
@@ -216,16 +213,8 @@ int main(int argc, const char** argv) {
                               argc, argv, 1, "SOCKETWIRE_PROJECTILE_ARENA_PORT",
                               projectile_arena::kKPort);
 
-  InitializeSockets();
-  auto* factory = SocketFactoryRegistry::GetFactory();
-  if (factory == nullptr) {
-    std::println("Cannot init SocketWire");
-    return 1;
-  }
-
-  auto socket = factory->CreateUdpSocket(SocketConfig{});
-  if (socket == nullptr ||
-      socket->Bind(socket_constants::Any(), port) != SocketError::kNone) {
+  auto socket = socketwire_examples::CreateUdpSocket(port);
+  if (socket == nullptr) {
     std::println("Cannot bind projectile-arena server");
     return 1;
   }

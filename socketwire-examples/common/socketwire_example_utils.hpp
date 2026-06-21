@@ -1,6 +1,7 @@
 #pragma once
 
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -9,9 +10,11 @@
 #include <print>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "bit_stream.hpp"
 #include "i_socket.hpp"
+#include "reliable_connection.hpp"
 #include "socket_constants.hpp"
 #include "socket_init.hpp"
 #include "socket_resolver.hpp"
@@ -99,32 +102,70 @@ inline std::unique_ptr<socketwire::ISocket> CreateUdpSocket(
   socketwire::SocketConfig cfg;
   cfg.nonBlocking = true;
   cfg.reuseAddress = true;
+  cfg.enableIPv6 = true;
 
-  auto socket = factory->CreateUdpSocket(cfg);
-  if (socket == nullptr) {
-    std::println("Cannot create UDP socket");
+  auto bind_socket =
+    [&](const socketwire::SocketConfig& socket_config,
+        const socketwire::SocketAddress& address)
+    -> std::unique_ptr<socketwire::ISocket> {
+    auto socket = factory->CreateUdpSocket(socket_config);
+    if (socket == nullptr) return nullptr;
+    if (socket->Bind(address, port) == socketwire::SocketError::kNone) {
+      return socket;
+    }
     return nullptr;
+  };
+
+  if (auto socket =
+        bind_socket(cfg, socketwire::socket_constants::AnyIPv6())) {
+    return socket;
   }
 
-  if (socket->Bind(socketwire::socket_constants::Any(), port) !=
-      socketwire::SocketError::kNone) {
-    std::println("Cannot bind UDP socket to port {}",
-                 static_cast<unsigned>(port));
-    return nullptr;
+  cfg.enableIPv6 = false;
+  if (auto socket = bind_socket(cfg, socketwire::socket_constants::Any())) {
+    return socket;
   }
 
-  return socket;
+  std::println("Cannot bind UDP socket to port {}", static_cast<unsigned>(port));
+  return nullptr;
+}
+
+struct ResolvedEndpoint {
+  std::vector<socketwire::SocketAddress> addresses;
+  std::size_t nextAddress = 0;
+};
+
+inline std::optional<ResolvedEndpoint> ResolveEndpoint(
+  std::string_view host, std::uint16_t port = 0,
+  socketwire::AddressFamily family = socketwire::AddressFamily::kAny) {
+  if (host.empty()) return std::nullopt;
+
+  const socketwire::ResolveHostResult result =
+    socketwire::ResolveHost(host, port, family);
+  if (result.Failed() || result.addresses.empty()) return std::nullopt;
+  return ResolvedEndpoint{.addresses = result.addresses};
 }
 
 inline std::optional<socketwire::SocketAddress> ResolveAddress(
   std::string_view host,
-  socketwire::AddressFamily family = socketwire::AddressFamily::kIPv4) {
-  if (host.empty()) return std::nullopt;
+  socketwire::AddressFamily family = socketwire::AddressFamily::kAny) {
+  auto endpoint = ResolveEndpoint(host, 0, family);
+  if (!endpoint || endpoint->addresses.empty()) return std::nullopt;
+  return endpoint->addresses.front();
+}
 
-  const socketwire::ResolveHostResult result =
-    socketwire::ResolveHost(host, 0, family);
-  if (result.Failed() || result.addresses.empty()) return std::nullopt;
-  return result.addresses.front();
+inline bool ConnectNextAddress(socketwire::ReliableConnection& connection,
+                               ResolvedEndpoint& endpoint,
+                               std::uint16_t port) {
+  if (endpoint.addresses.empty()) return false;
+
+  for (std::size_t i = 0; i < endpoint.addresses.size(); ++i) {
+    const socketwire::SocketAddress& address =
+      endpoint.addresses[endpoint.nextAddress];
+    endpoint.nextAddress = (endpoint.nextAddress + 1) % endpoint.addresses.size();
+    if (connection.Connect(address, port)) return true;
+  }
+  return false;
 }
 
 inline void WriteString(socketwire::BitStream& stream,

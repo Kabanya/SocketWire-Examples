@@ -87,7 +87,7 @@ help:
 	@printf '%s\n' 'Useful variables:'
 	@printf '%s\n' '  CLIENTS=2          number of clients to start for each example'
 	@printf '%s\n' '  RUN_DURATION=0     seconds before auto-stopping; 0 waits for clients'
-	@printf '%s\n' '  CLIENT_HOST=127.0.0.1 or localhost/my-machine.local'
+	@printf '%s\n' '  CLIENT_HOST=127.0.0.1, ::1, localhost, or my-machine.local'
 	@printf '%s\n' '  BENCH=1            run headless benchmark mode when supported'
 	@printf '%s\n' '  BUILD_DIR=... BIN_DIR=... JOBS=...'
 
