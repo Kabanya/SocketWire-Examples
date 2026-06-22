@@ -65,7 +65,7 @@ static constexpr std::size_t kStateHistoryLimit = 200;
 
 static void OnNewEntityPacket(const void* data, std::size_t size) {
   Entity new_entity;
-  DeserializeNewEntity(data, size, new_entity);
+  if (!DeserializeNewEntity(data, size, new_entity)) return;
   if (index_map.contains(new_entity.eid)) return;
 
   std::println("Received new entity with ID: {}", new_entity.eid);
@@ -74,7 +74,7 @@ static void OnNewEntityPacket(const void* data, std::size_t size) {
 }
 
 static void OnSetControlledEntity(const void* data, std::size_t size) {
-  DeserializeSetControlledEntity(data, size, my_entity);
+  if (!DeserializeSetControlledEntity(data, size, my_entity)) return;
   std::println("Set controlled entity to: {}", my_entity);
 }
 
@@ -95,8 +95,10 @@ static void OnSnapshot(const void* data, std::size_t size) {
   TimePoint timestamp;
   std::uint32_t frame_number = 0;
 
-  DeserializeSnapshot(data, size, eid, x, y, ori, vx, vy, omega, timestamp,
-                      frame_number);
+  if (!DeserializeSnapshot(data, size, eid, x, y, ori, vx, vy, omega, timestamp,
+                           frame_number)) {
+    return;
+  }
   const Snapshot snapshot{eid, x,     y,         ori,         vx,
                           vy,  omega, timestamp, frame_number};
 
@@ -198,7 +200,7 @@ static void ProcessSnapshotHistory(const TimePoint& current_time) {
 static void OnTime(const void* data, std::size_t size,
                    const socketwire::ReliableConnection& connection) {
   std::uint32_t time_msec = 0;
-  DeserializeTimeMsec(data, size, time_msec);
+  if (!DeserializeTimeMsec(data, size, time_msec)) return;
   estimated_server_time_msec =
     time_msec + static_cast<std::uint32_t>(connection.GetRtt() * 0.5f);
 }
@@ -444,6 +446,7 @@ int main(int argc, const char** argv) {
                                                     connect_port);
       next_connect_attempt = now + std::chrono::milliseconds(250);
     }
+    connection.Poll();
     connection.Update();
     if (handler.connected && !sent_join) {
       SendJoin(&connection);

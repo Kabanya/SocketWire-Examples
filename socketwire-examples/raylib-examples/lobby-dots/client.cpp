@@ -6,6 +6,7 @@
 #include <print>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -27,6 +28,7 @@ struct ClientState {
   std::string gameServerStatus = "Connecting to lobby...";
   std::vector<Player> players;
   int myPlayerId = -1;
+  std::string lobbyHost;
   std::string pendingGameHost;
   std::uint16_t pendingGamePort = 0;
 };
@@ -95,6 +97,10 @@ static void SendPosition(socketwire::ReliableConnection& connection, float x,
   SendText(connection, pos_msg, false);
 }
 
+static bool IsLocalHost(std::string_view host) {
+  return host == "localhost" || host == "127.0.0.1" || host == "::1";
+}
+
 enum class ConnectionTarget { kLobby, kGame };
 
 class ClientHandler final : public socketwire::IReliableConnectionHandler {
@@ -150,6 +156,10 @@ class ClientHandler final : public socketwire::IReliableConnectionHandler {
         if (std::sscanf(text.c_str(), "GAMESERVER %255s %d", server_ip,
                         &server_port) == 2) {
           state_.pendingGameHost = server_ip;
+          if (IsLocalHost(state_.pendingGameHost) &&
+              !IsLocalHost(state_.lobbyHost)) {
+            state_.pendingGameHost = state_.lobbyHost;
+          }
           state_.pendingGamePort = static_cast<std::uint16_t>(server_port);
           state_.gameServerStatus = "Connecting to game server...";
         }
@@ -281,6 +291,7 @@ int main(int argc, const char** argv) {
   socketwire::ReliableConnection lobby_connection(lobby_socket.get(), cfg);
 
   ClientState state;
+  state.lobbyHost = bench_options.host;
   ClientHandler lobby_handler(state, ConnectionTarget::kLobby);
   lobby_connection.SetHandler(&lobby_handler);
   if (!socketwire_examples::ConnectNextAddress(lobby_connection,
@@ -328,6 +339,8 @@ int main(int argc, const char** argv) {
                                                     state.pendingGamePort);
       next_game_connect_attempt = now + std::chrono::milliseconds(250);
     }
+    lobby_connection.Poll();
+    if (game_connection != nullptr) game_connection->Poll();
     lobby_connection.Update();
     if (game_connection != nullptr) game_connection->Update();
 
@@ -388,7 +401,7 @@ int main(int argc, const char** argv) {
     if (((bench_options.enabled && !start_sent) ||
          (!bench_options.enabled && IsKeyPressed(KEY_ENTER))) &&
         state.connectedToLobby) {
-      SendText(lobby_connection, "Start!");
+      SendText(lobby_connection, "Start!", false);
       start_sent = true;
     }
 
@@ -428,10 +441,14 @@ int main(int argc, const char** argv) {
 
       int y_offset = 80;
       for (const auto& player : state.players) {
-        DrawText(TextFormat("Player %d: (%d, %d) - Ping: %d ms", player.id,
-                            static_cast<int>(player.x),
+        const char* row_format =
+          player.id == state.myPlayerId
+            ? "Player %d (you): (%d, %d) - Ping: %d ms"
+            : "Player %d: (%d, %d) - Ping: %d ms";
+        DrawText(TextFormat(row_format, player.id, static_cast<int>(player.x),
                             static_cast<int>(player.y), player.ping),
-                 20, y_offset, 18, WHITE);
+                 20, y_offset, 18,
+                 player.id == state.myPlayerId ? SKYBLUE : WHITE);
         y_offset += 20;
 
         if (player.id != state.myPlayerId) {
@@ -459,6 +476,9 @@ int main(int argc, const char** argv) {
       }
       metrics.SetConnectedClients(connected_count);
       metrics.SetNetworkStats(stats);
+      socketwire_examples::benchmark::GameMetrics game_metrics;
+      game_metrics.entityCountClient = state.players.size();
+      metrics.SetGameMetrics(game_metrics);
       metrics.RecordUpdateMs(
         static_cast<double>(
           std::chrono::duration_cast<std::chrono::microseconds>(update_end -

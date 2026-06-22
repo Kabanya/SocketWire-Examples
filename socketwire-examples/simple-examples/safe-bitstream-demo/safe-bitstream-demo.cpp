@@ -1,5 +1,4 @@
 #include <cstdint>
-#include <cstdio>
 #include <print>
 #include <span>
 #include <string>

@@ -4,7 +4,7 @@
 constexpr uint16_t kInvalidEntity = -1;
 struct Entity {
   // immutable state
-  uint32_t color = 0xff00ffff;
+  uint32_t color = 0x2f80edff;
 
   // mutable state
   float x = 0.f;

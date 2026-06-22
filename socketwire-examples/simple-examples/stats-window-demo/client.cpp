@@ -77,6 +77,7 @@ int main(int argc, const char** argv) {
   std::uint32_t next_sample = 0;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(6)) {
+    connection.Poll();
     connection.Update();
 
     while (handler.connected &&

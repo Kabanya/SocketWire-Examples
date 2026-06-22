@@ -4,6 +4,18 @@
 #include "bit_stream.hpp"
 #include "reliable_connection.hpp"
 
+namespace {
+
+template <typename T>
+bool Read(socketwire::BitStream& stream, T& value) {
+  const auto read = stream.TryRead<T>();
+  if (!read) return false;
+  value = *read;
+  return true;
+}
+
+}  // namespace
+
 void SendJoin(socketwire::ReliableConnection* connection) {
   socketwire::BitStream bs;
   bs.Write<std::uint8_t>(kEClientToServerJoin);
@@ -92,66 +104,49 @@ MessageType GetPacketType(const void* data, std::size_t size) {
   return static_cast<MessageType>(*static_cast<const std::uint8_t*>(data));
 }
 
-void DeserializeNewEntity(const void* data, std::size_t size, Entity& ent) {
+bool DeserializeNewEntity(const void* data, std::size_t size, Entity& ent) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint32_t>(ent.color);
-  bs.Read<float>(ent.x);
-  bs.Read<float>(ent.y);
-  bs.Read<std::uint16_t>(ent.eid);
-  bs.Read<float>(ent.vx);
-  bs.Read<float>(ent.vy);
-  bs.Read<float>(ent.ori);
-  bs.Read<float>(ent.omega);
-  bs.Read<float>(ent.thr);
-  bs.Read<float>(ent.steer);
-  bs.Read<std::uint16_t>(ent.eid);
+  return Read(bs, type) && Read(bs, ent.color) && Read(bs, ent.x) &&
+         Read(bs, ent.y) && Read(bs, ent.eid) && Read(bs, ent.vx) &&
+         Read(bs, ent.vy) && Read(bs, ent.ori) && Read(bs, ent.omega) &&
+         Read(bs, ent.thr) && Read(bs, ent.steer) && Read(bs, ent.eid);
 }
 
-void DeserializeSetControlledEntity(const void* data, std::size_t size,
+bool DeserializeSetControlledEntity(const void* data, std::size_t size,
                                     std::uint16_t& eid) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint16_t>(eid);
+  return Read(bs, type) && Read(bs, eid);
 }
 
-void DeserializeEntityInput(const void* data, std::size_t size,
+bool DeserializeEntityInput(const void* data, std::size_t size,
                             std::uint16_t& eid, float& thr, float& steer) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint16_t>(eid);
-  bs.Read<float>(thr);
-  bs.Read<float>(steer);
+  return Read(bs, type) && Read(bs, eid) && Read(bs, thr) && Read(bs, steer);
 }
 
-void DeserializeSnapshot(const void* data, std::size_t size, std::uint16_t& eid,
+bool DeserializeSnapshot(const void* data, std::size_t size, std::uint16_t& eid,
                          float& x, float& y, float& ori, float& vx, float& vy,
                          float& omega, TimePoint& timestamp,
                          std::uint32_t& frame_number) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint16_t>(eid);
-  bs.Read<float>(x);
-  bs.Read<float>(y);
-  bs.Read<float>(ori);
-  bs.Read<float>(vx);
-  bs.Read<float>(vy);
-  bs.Read<float>(omega);
-
   std::uint64_t timestamp_ms = 0;
-  bs.Read<std::uint64_t>(timestamp_ms);
-  bs.Read<std::uint32_t>(frame_number);
+  if (!Read(bs, type) || !Read(bs, eid) || !Read(bs, x) || !Read(bs, y) ||
+      !Read(bs, ori) || !Read(bs, vx) || !Read(bs, vy) ||
+      !Read(bs, omega) || !Read(bs, timestamp_ms) ||
+      !Read(bs, frame_number)) {
+    return false;
+  }
   timestamp = TimePoint(std::chrono::milliseconds(timestamp_ms));
+  return true;
 }
 
-void DeserializeTimeMsec(const void* data, std::size_t size,
+bool DeserializeTimeMsec(const void* data, std::size_t size,
                          std::uint32_t& time_msec) {
   socketwire::BitStream bs(static_cast<const std::uint8_t*>(data), size);
   std::uint8_t type = 0;
-  bs.Read<std::uint8_t>(type);
-  bs.Read<std::uint32_t>(time_msec);
+  return Read(bs, type) && Read(bs, time_msec);
 }

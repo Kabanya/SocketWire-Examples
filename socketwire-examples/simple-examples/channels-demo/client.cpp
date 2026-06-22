@@ -89,6 +89,7 @@ int main(int argc, const char** argv) {
   std::uint32_t tick = 0;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5)) {
+    connection.Poll();
     connection.Update();
 
     if (handler.connected && !command_sent) {

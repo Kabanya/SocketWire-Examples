@@ -32,11 +32,9 @@ BENCH_WARMUP_MS ?= 1000
 ENTITY_EATER_PORT ?= 10131
 PREDICTION_SHIPS_PORT ?= 10131
 SHIP_SWARM_PORT ?= 10133
-CIPHER_SHIPS_PORT ?= 10131
 LOBBY_DOTS_LOBBY_PORT ?= 10887
 LOBBY_DOTS_GAME_PORT ?= 10888
 PROJECTILE_ARENA_PORT ?= 53477
-PERSISTENT_ARENA_PORT ?= 53478
 
 ifeq ($(JOBS),auto)
 PARALLEL_FLAG := --parallel
@@ -49,27 +47,22 @@ RAYLIB_EXAMPLES := \
 	lobby-dots \
 	prediction-ships \
 	ship-swarm \
-	cipher-ships \
-	projectile-arena \
-	persistent-arena
+	projectile-arena
 
 RAYLIB_TARGETS := \
 	entity-eater-server entity-eater-client \
 	lobby-dots-lobby lobby-dots-game-server lobby-dots-client \
 	prediction-ships-server prediction-ships-client \
 	ship-swarm-server ship-swarm-client \
-	cipher-ships-server cipher-ships-client \
-	projectile-arena-server projectile-arena-client \
-	persistent-arena-server persistent-arena-client
+	projectile-arena-server projectile-arena-client
 
 .DEFAULT_GOAL := run-all
 
 .PHONY: help configure build run-all run-readme
 .PHONY: run-entity-eater run-lobby-dots run-prediction-ships run-ship-swarm
-.PHONY: run-cipher-ships run-projectile-arena run-persistent-arena
+.PHONY: run-projectile-arena
 .PHONY: _start-entity-eater _start-lobby-dots _start-prediction-ships
-.PHONY: _start-ship-swarm _start-cipher-ships _start-projectile-arena
-.PHONY: _start-persistent-arena
+.PHONY: _start-ship-swarm _start-projectile-arena
 .PHONY: _run-server-clients _run-lobby-dots
 .PHONY: $(addprefix build-,$(RAYLIB_TARGETS))
 
@@ -81,8 +74,7 @@ help:
 	@printf '%s\n' 'Targets:'
 	@printf '%s\n' '  run-all | run-readme'
 	@printf '%s\n' '  run-entity-eater | run-lobby-dots | run-prediction-ships'
-	@printf '%s\n' '  run-ship-swarm | run-cipher-ships | run-projectile-arena'
-	@printf '%s\n' '  run-persistent-arena'
+	@printf '%s\n' '  run-ship-swarm | run-projectile-arena'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Useful variables:'
 	@printf '%s\n' '  CLIENTS=2          number of clients to start for each example'
@@ -142,18 +134,6 @@ _start-ship-swarm:
 		SERVER_ARGS="$(SHIP_SWARM_PORT)" \
 		CLIENT_ARGS="--host $(CLIENT_HOST) --port $(SHIP_SWARM_PORT)"
 
-run-cipher-ships: build-cipher-ships-server build-cipher-ships-client
-	@$(MAKE) --no-print-directory -f "$(SELF)" _start-cipher-ships
-
-_start-cipher-ships:
-	@$(MAKE) --no-print-directory -f "$(SELF)" _run-server-clients \
-		EXAMPLE=cipher-ships \
-		SERVER=cipher-ships-server \
-		CLIENT=cipher-ships-client \
-		PORT="$(CIPHER_SHIPS_PORT)" \
-		SERVER_ARGS="$(CIPHER_SHIPS_PORT)" \
-		CLIENT_ARGS="$(CIPHER_SHIPS_PORT)"
-
 run-projectile-arena: build-projectile-arena-server build-projectile-arena-client
 	@$(MAKE) --no-print-directory -f "$(SELF)" _start-projectile-arena
 
@@ -165,18 +145,6 @@ _start-projectile-arena:
 		PORT="$(PROJECTILE_ARENA_PORT)" \
 		SERVER_ARGS="$(PROJECTILE_ARENA_PORT)" \
 		CLIENT_ARGS="$(PROJECTILE_ARENA_PORT)"
-
-run-persistent-arena: build-persistent-arena-server build-persistent-arena-client
-	@$(MAKE) --no-print-directory -f "$(SELF)" _start-persistent-arena
-
-_start-persistent-arena:
-	@$(MAKE) --no-print-directory -f "$(SELF)" _run-server-clients \
-		EXAMPLE=persistent-arena \
-		SERVER=persistent-arena-server \
-		CLIENT=persistent-arena-client \
-		PORT="$(PERSISTENT_ARENA_PORT)" \
-		SERVER_ARGS="$(PERSISTENT_ARENA_PORT)" \
-		CLIENT_ARGS="--host $(CLIENT_HOST) --port $(PERSISTENT_ARENA_PORT)"
 
 run-lobby-dots: build-lobby-dots-lobby build-lobby-dots-game-server build-lobby-dots-client
 	@$(MAKE) --no-print-directory -f "$(SELF)" _start-lobby-dots

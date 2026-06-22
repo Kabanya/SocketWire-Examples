@@ -28,7 +28,7 @@ static int GeneratePlayerId() {
 }
 
 static void SendText(socketwire_examples::ServerConnectionHub::Client& client,
-                     const std::string& text, bool reliable = true) {
+                     const std::string& text, bool reliable = false) {
   const std::size_t bytes = text.size() + 1;
   const bool sent =
     reliable ? client.connection->SendReliable(0, text.c_str(), bytes)
@@ -49,16 +49,9 @@ static void SendPlayerList(
   SendText(target_client, ss.str());
 }
 
-static void BroadcastNewPlayer(const Player& new_player,
-                               const std::vector<Player>& players) {
-  std::stringstream ss;
-  ss << "NEWPLAYER " << new_player.id << " " << new_player.x << " "
-     << new_player.y << " " << new_player.ping << " " << new_player.name;
-  const std::string msg = ss.str();
+static void BroadcastPlayerList(const std::vector<Player>& players) {
   for (const auto& player : players) {
-    if (player.id != new_player.id && player.client != nullptr) {
-      SendText(*player.client, msg);
-    }
+    if (player.client != nullptr) SendPlayerList(players, *player.client);
   }
 }
 
@@ -131,8 +124,7 @@ int main(int argc, const char** argv) {
       "WELCOME " + std::to_string(new_player.id) + " " + new_player.name;
     players.push_back(new_player);
     SendText(client, welcome_msg);
-    SendPlayerList(players, client);
-    BroadcastNewPlayer(new_player, players);
+    BroadcastPlayerList(players);
   });
 
   hub.SetDisconnectedCallback([&](auto& client) {
@@ -144,14 +136,9 @@ int main(int argc, const char** argv) {
       [&](const Player& player) { return player.client == &client; });
     if (it == players.end()) return;
 
-    const int disconnected_id = it->id;
     players.erase(it);
 
-    const std::string disconnect_msg =
-      "PLAYERLEFT " + std::to_string(disconnected_id);
-    for (const auto& player : players) {
-      if (player.client != nullptr) SendText(*player.client, disconnect_msg);
-    }
+    BroadcastPlayerList(players);
   });
 
   hub.SetPacketCallback([&](auto& client, std::uint8_t, const void* data,
@@ -200,7 +187,10 @@ int main(int argc, const char** argv) {
                                                               last_ping_time)
           .count() > 500) {
       last_ping_time = current_time;
-      if (!players.empty()) BroadcastPings(players);
+      if (!players.empty()) {
+        BroadcastPlayerList(players);
+        BroadcastPings(players);
+      }
     }
     const auto update_end = std::chrono::steady_clock::now();
 

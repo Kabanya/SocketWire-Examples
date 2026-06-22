@@ -8,6 +8,7 @@
 namespace projectile_arena {
 
 constexpr std::uint16_t kKPort = 53477;
+constexpr std::uint16_t kKMaxHealth = 100;
 
 enum class MessageType : std::uint8_t {
   kJoin = 1,
@@ -33,6 +34,7 @@ struct PlayerSnapshot {
   std::uint16_t id = 0;
   float x = 0.0f;
   float y = 0.0f;
+  std::uint16_t health = kKMaxHealth;
 };
 
 struct ProjectileSnapshot {
@@ -89,6 +91,7 @@ inline socketwire::BitStream MakeSnapshot(const WorldSnapshot& snapshot) {
     stream.Write<std::uint16_t>(player.id);
     stream.Write<float>(player.x);
     stream.Write<float>(player.y);
+    stream.Write<std::uint16_t>(player.health);
   }
 
   stream.Write<std::uint16_t>(
@@ -148,8 +151,9 @@ inline bool ReadSnapshot(socketwire::BitStream& stream,
     const auto id = stream.TryRead<std::uint16_t>();
     const auto x = stream.TryRead<float>();
     const auto y = stream.TryRead<float>();
-    if (!id || !x || !y) return false;
-    snapshot.players.push_back(PlayerSnapshot{*id, *x, *y});
+    const auto health = stream.TryRead<std::uint16_t>();
+    if (!id || !x || !y || !health) return false;
+    snapshot.players.push_back(PlayerSnapshot{*id, *x, *y, *health});
   }
 
   const auto projectile_count = stream.TryRead<std::uint16_t>();

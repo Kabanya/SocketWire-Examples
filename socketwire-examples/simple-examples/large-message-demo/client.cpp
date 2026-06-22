@@ -70,6 +70,7 @@ int main(int argc, const char** argv) {
   ReliableConnectionConfig cfg;
   cfg.numChannels = 1;
   cfg.maxPacketSize = 256;
+  cfg.enablePacketBatching = false;
   ReliableConnection connection(socket.get(), cfg);
   ClientHandler handler;
   connection.SetHandler(&handler);
@@ -79,6 +80,7 @@ int main(int argc, const char** argv) {
   bool sent = false;
 
   while (std::chrono::steady_clock::now() - started < std::chrono::seconds(5)) {
+    connection.Poll();
     connection.Update();
     if (handler.connected && !sent) {
       const auto payload = large_message_demo::MakePayload();

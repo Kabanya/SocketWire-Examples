@@ -69,6 +69,7 @@ int main(int argc, const char** argv) {
   ReliableConnectionConfig cfg;
   cfg.numChannels = 1;
   cfg.maxPacketSize = 256;
+  cfg.enablePacketBatching = false;
   cfg.fragmentTimeoutMs = 3000;
   socketwire_examples::ServerConnectionHub hub(socket.get(), cfg);
   hub.SetConnectedCallback([](auto& client) {

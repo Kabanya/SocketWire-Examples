@@ -17,6 +17,9 @@ using namespace socketwire;  // NOLINT
 
 namespace {
 
+constexpr float kKPlayerRadius = 15.0f;
+constexpr float kKProjectileDrawRadius = 6.0f;
+
 struct ClientState {
   bool connected = false;
   bool welcomed = false;
@@ -131,6 +134,30 @@ Color PlayerColor(std::uint16_t id, std::uint16_t local_id) {
   return kPalette[id % 4];
 }
 
+void DrawHealthBar(const projectile_arena::PlayerSnapshot& player) {
+  const float bar_width = 34.0f;
+  const float bar_height = 5.0f;
+  const float x = player.x - bar_width * 0.5f;
+  const float y = player.y - 31.0f;
+  const float ratio =
+    std::clamp(static_cast<float>(player.health) /
+                 static_cast<float>(projectile_arena::kKMaxHealth),
+               0.0f, 1.0f);
+  const Color fill = player.health > 50   ? Color{42, 164, 92, 255}
+                     : player.health > 25 ? Color{230, 170, 42, 255}
+                                          : Color{210, 72, 64, 255};
+
+  DrawRectangleRec(Rectangle{x, y, bar_width, bar_height},
+                   Color{38, 44, 48, 210});
+  DrawRectangleRec(Rectangle{x, y, bar_width * ratio, bar_height}, fill);
+  DrawRectangleLinesEx(Rectangle{x, y, bar_width, bar_height}, 1.0f,
+                       Color{245, 246, 242, 230});
+
+  const char* label = TextFormat("%u", player.health);
+  DrawText(label, static_cast<int>(player.x - MeasureText(label, 10) * 0.5f),
+           static_cast<int>(y - 11.0f), 10, Color{32, 38, 42, 255});
+}
+
 Vector2 LocalPlayerPosition(const ClientState& state) {
   for (const auto& player : state.snapshot.players) {
     if (player.id == state.playerId) return Vector2{player.x, player.y};
@@ -213,6 +240,7 @@ int main(int argc, const char** argv) {
       next_connect_attempt =
         std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
     }
+    connection.Poll();
     connection.Update();
 
     if (state.connected && !join_sent) {
@@ -258,7 +286,7 @@ int main(int argc, const char** argv) {
         fire.aimX = mouse.x;
         fire.aimY = mouse.y;
         auto fire_packet = projectile_arena::MakeFire(fire);
-        if (connection.SendReliable(0, fire_packet)) {
+        if (connection.SendUnsequenced(0, fire_packet)) {
           socketwire_examples::benchmark::RecordPayloadTx(
             fire_packet.GetSizeBytes());
           ++state.appSentPackets;
@@ -276,13 +304,17 @@ int main(int argc, const char** argv) {
       DrawRectangleLines(12, 12, 876, 576, Color{58, 66, 72, 255});
 
       for (const auto& projectile : state.snapshot.projectiles) {
-        DrawCircleV(Vector2{projectile.x, projectile.y}, 5.0f,
+        DrawCircleV(Vector2{projectile.x, projectile.y},
+                    kKProjectileDrawRadius + 2.0f,
+                    Color{58, 50, 36, 220});
+        DrawCircleV(Vector2{projectile.x, projectile.y}, kKProjectileDrawRadius,
                     Color{236, 182, 50, 255});
       }
 
       for (const auto& player : state.snapshot.players) {
         const auto color = PlayerColor(player.id, state.playerId);
-        DrawCircleV(Vector2{player.x, player.y}, 15.0f, color);
+        DrawHealthBar(player);
+        DrawCircleV(Vector2{player.x, player.y}, kKPlayerRadius, color);
         DrawText(TextFormat("%u", player.id), static_cast<int>(player.x - 4.0f),
                  static_cast<int>(player.y - 8.0f), 14, WHITE);
       }

@@ -15,7 +15,6 @@ STATS_WINDOW_DEMO_PORT ?= 53476
 ENTITY_EATER_PORT ?= 10131
 PREDICTION_SHIPS_PORT ?= 10132
 SHIP_SWARM_PORT ?= 10133
-CIPHER_SHIPS_PORT ?= 10134
 LOBBY_DOTS_LOBBY_PORT ?= 10887
 LOBBY_DOTS_GAME_PORT ?= 10888
 PROJECTILE_ARENA_PORT ?= 53477
@@ -50,7 +49,6 @@ RAYLIB_TARGETS := \
 	lobby-dots-lobby lobby-dots-game-server lobby-dots-client \
 	prediction-ships-server prediction-ships-client \
 	ship-swarm-server ship-swarm-client \
-	cipher-ships-server cipher-ships-client \
 	projectile-arena-server projectile-arena-client
 
 NETWORK_BENCH_TARGETS := netbench-socketwire-server netbench-socketwire-client
@@ -72,7 +70,6 @@ RAYLIB_RUN_SPECS := \
 	entity-eater-server:$(ENTITY_EATER_PORT) entity-eater-client:$(ENTITY_EATER_PORT) \
 	prediction-ships-server:$(PREDICTION_SHIPS_PORT) prediction-ships-client:$(PREDICTION_SHIPS_PORT) \
 	ship-swarm-server:$(SHIP_SWARM_PORT) ship-swarm-client:$(SHIP_SWARM_PORT) \
-	cipher-ships-server:$(CIPHER_SHIPS_PORT) cipher-ships-client:$(CIPHER_SHIPS_PORT) \
 	projectile-arena-server:$(PROJECTILE_ARENA_PORT) projectile-arena-client:$(PROJECTILE_ARENA_PORT) \
 	lobby-dots-lobby:localhost:$(LOBBY_DOTS_GAME_PORT):$(LOBBY_DOTS_LOBBY_PORT) \
 	lobby-dots-game-server:$(LOBBY_DOTS_GAME_PORT) \
@@ -82,7 +79,7 @@ RAYLIB_RUN_SPECS := \
 
 .PHONY: all help configure build build-all-targets build-examples build-simple-examples build-raylib-examples clean rebuild test
 .PHONY: run-echo run-math-duel run-packet-stream run-channels-demo run-large-message-demo run-stats-window-demo
-.PHONY: run-entity-eater run-prediction-ships run-ship-swarm run-cipher-ships run-projectile-arena run-lobby-dots
+.PHONY: run-entity-eater run-prediction-ships run-ship-swarm run-projectile-arena run-lobby-dots
 .PHONY: run-simple-examples run-raylib-examples run-all-examples
 .PHONY: run-network-bench-sweep
 .PHONY: _run-pair _run-lobby _run-group
@@ -106,7 +103,7 @@ help:
 	@printf '%s\n' '  make run-echo | make run-math-duel | make run-packet-stream'
 	@printf '%s\n' '  make run-channels-demo | make run-large-message-demo | make run-stats-window-demo'
 	@printf '%s\n' '  make run-entity-eater | make run-prediction-ships | make run-ship-swarm'
-	@printf '%s\n' '  make run-cipher-ships | make run-projectile-arena | make run-lobby-dots'
+	@printf '%s\n' '  make run-projectile-arena | make run-lobby-dots'
 	@printf '%s\n' '  make run-network-bench-sweep'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Run groups:'
@@ -169,7 +166,6 @@ $(eval $(call pair_target,stats-window-demo,stats-window-demo-server,stats-windo
 $(eval $(call pair_target,entity-eater,entity-eater-server,entity-eater-client,ENTITY_EATER_PORT))
 $(eval $(call pair_target,prediction-ships,prediction-ships-server,prediction-ships-client,PREDICTION_SHIPS_PORT))
 $(eval $(call pair_target,ship-swarm,ship-swarm-server,ship-swarm-client,SHIP_SWARM_PORT))
-$(eval $(call pair_target,cipher-ships,cipher-ships-server,cipher-ships-client,CIPHER_SHIPS_PORT))
 $(eval $(call pair_target,projectile-arena,projectile-arena-server,projectile-arena-client,PROJECTILE_ARENA_PORT))
 
 run-lobby-dots: build-lobby-dots-lobby build-lobby-dots-game-server build-lobby-dots-client

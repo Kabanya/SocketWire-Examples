@@ -38,14 +38,14 @@ void SendTimeMsec(socketwire::ReliableConnection* connection,
 
 MessageType GetPacketType(const void* data, std::size_t size);
 
-void DeserializeNewEntity(const void* data, std::size_t size, Entity& ent);
-void DeserializeSetControlledEntity(const void* data, std::size_t size,
+bool DeserializeNewEntity(const void* data, std::size_t size, Entity& ent);
+bool DeserializeSetControlledEntity(const void* data, std::size_t size,
                                     std::uint16_t& eid);
-void DeserializeEntityInput(const void* data, std::size_t size,
+bool DeserializeEntityInput(const void* data, std::size_t size,
                             std::uint16_t& eid, float& thr, float& steer);
-void DeserializeSnapshot(const void* data, std::size_t size, std::uint16_t& eid,
+bool DeserializeSnapshot(const void* data, std::size_t size, std::uint16_t& eid,
                          float& x, float& y, float& ori, float& vx, float& vy,
                          float& omega, TimePoint& timestamp,
                          std::uint32_t& frame_number);
-void DeserializeTimeMsec(const void* data, std::size_t size,
+bool DeserializeTimeMsec(const void* data, std::size_t size,
                          std::uint32_t& time_msec);

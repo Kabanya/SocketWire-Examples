@@ -64,6 +64,7 @@ int main(int argc, const char** argv) {
   int counter = 0;
 
   while (true) {
+    connection.Poll();
     connection.Update();
     if (handler.connected) {
       auto now = std::chrono::steady_clock::now();

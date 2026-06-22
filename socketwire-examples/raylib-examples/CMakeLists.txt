@@ -5,9 +5,7 @@ foreach(example
   lobby-dots
   prediction-ships
   ship-swarm
-  cipher-ships
   projectile-arena
-  persistent-arena
 )
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${example}/CMakeLists.txt")
     add_subdirectory(${example})

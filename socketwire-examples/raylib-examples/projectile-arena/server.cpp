@@ -18,6 +18,11 @@ namespace {
 
 using Client = socketwire_examples::ServerConnectionHub::Client;
 
+constexpr float kKPlayerRadius = 15.0f;
+constexpr float kKProjectileRadius = 6.0f;
+constexpr float kKProjectileSpeed = 420.0f;
+constexpr std::uint16_t kKProjectileDamage = 25;
+
 struct PlayerState {
   std::uint16_t id = 0;
   Client* client = nullptr;
@@ -25,6 +30,7 @@ struct PlayerState {
   float y = 300.0f;
   float axisX = 0.0f;
   float axisY = 0.0f;
+  std::uint16_t health = projectile_arena::kKMaxHealth;
 };
 
 struct ProjectileState {
@@ -84,8 +90,8 @@ void HandleFire(PlayerState& player,
     player.id,
     player.x,
     player.y,
-    dx * 420.0f,
-    dy * 420.0f,
+    dx * kKProjectileSpeed,
+    dy * kKProjectileSpeed,
   });
   std::println("player {} fired at {:.1f} {:.1f}", player.id, fire.aimX,
                fire.aimY);
@@ -123,6 +129,36 @@ void HandlePacket(Client& client, const void* data, std::size_t size) {
   }
 }
 
+void ResolveProjectileHits() {
+  std::vector<std::uint16_t> hit_projectiles;
+
+  for (const auto& projectile : projectiles) {
+    for (auto& entry : players) {
+      auto& player = entry.second;
+      if (player.id == projectile.ownerId) continue;
+
+      const float dx = projectile.x - player.x;
+      const float dy = projectile.y - player.y;
+      const float hit_radius = kKProjectileRadius + kKPlayerRadius;
+      if (dx * dx + dy * dy > hit_radius * hit_radius) continue;
+
+      player.health = player.health > kKProjectileDamage
+                        ? static_cast<std::uint16_t>(player.health -
+                                                     kKProjectileDamage)
+                        : 0;
+      hit_projectiles.push_back(projectile.id);
+      break;
+    }
+  }
+
+  if (hit_projectiles.empty()) return;
+
+  std::erase_if(projectiles, [&](const ProjectileState& projectile) {
+    return std::find(hit_projectiles.begin(), hit_projectiles.end(),
+                     projectile.id) != hit_projectiles.end();
+  });
+}
+
 void UpdateWorld(float dt) {
   for (auto& entry : players) {
     auto& player = entry.second;
@@ -134,6 +170,8 @@ void UpdateWorld(float dt) {
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
   }
+
+  ResolveProjectileHits();
 
   std::erase_if(projectiles, [](const ProjectileState& projectile) {
     return projectile.x < -20.0f || projectile.x > 920.0f ||
@@ -148,7 +186,8 @@ projectile_arena::WorldSnapshot MakeSnapshot() {
   for (const auto& entry : players) {
     const auto& player = entry.second;
     snapshot.players.push_back(
-      projectile_arena::PlayerSnapshot{player.id, player.x, player.y});
+      projectile_arena::PlayerSnapshot{player.id, player.x, player.y,
+                                       player.health});
   }
 
   snapshot.projectiles.reserve(projectiles.size());

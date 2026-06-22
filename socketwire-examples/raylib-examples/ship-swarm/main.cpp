@@ -396,6 +396,7 @@ int main(int argc, const char** argv) {
                                                     endpoint.port);
       next_connect_attempt = now + std::chrono::milliseconds(250);
     }
+    connection.Poll();
     connection.Update();
 
     if (handler.connected && !sent_join) {

@@ -102,7 +102,7 @@ inline std::unique_ptr<socketwire::ISocket> CreateUdpSocket(
   socketwire::SocketConfig cfg;
   cfg.nonBlocking = true;
   cfg.reuseAddress = true;
-  cfg.enableIPv6 = true;
+  cfg.enableIPv6 = false;
 
   auto bind_socket =
     [&](const socketwire::SocketConfig& socket_config,
@@ -116,13 +116,13 @@ inline std::unique_ptr<socketwire::ISocket> CreateUdpSocket(
     return nullptr;
   };
 
-  if (auto socket =
-        bind_socket(cfg, socketwire::socket_constants::AnyIPv6())) {
+  if (auto socket = bind_socket(cfg, socketwire::socket_constants::Any())) {
     return socket;
   }
 
-  cfg.enableIPv6 = false;
-  if (auto socket = bind_socket(cfg, socketwire::socket_constants::Any())) {
+  cfg.enableIPv6 = true;
+  if (auto socket =
+        bind_socket(cfg, socketwire::socket_constants::AnyIPv6())) {
     return socket;
   }
 

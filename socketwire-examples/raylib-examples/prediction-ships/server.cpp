@@ -35,6 +35,18 @@ static float RandomOrientation() {
   return distribution(RandomGenerator());
 }
 
+static std::uint32_t RandomShipColor() {
+  constexpr std::uint32_t colors[] = {
+    0x2f80edff,  // blue
+    0x27ae60ff,  // green
+    0xf2994aff,  // orange
+    0x9b51e0ff,  // violet
+    0xeb5757ff,  // red
+    0x56ccf2ff,  // sky
+  };
+  return colors[RandomInt(0, 5)];
+}
+
 static std::uint16_t NextEntityId() {
   std::uint16_t max_eid = entities.empty() ? kInvalidEntity : entities[0].eid;
   for (const Entity& e : entities) max_eid = std::max(max_eid, e.eid);
@@ -58,10 +70,7 @@ static void OnJoin(socketwire_examples::ServerConnectionHub& hub,
   }
 
   const std::uint16_t new_eid = NextEntityId();
-  const std::uint32_t color =
-    0xff000000u + 0x00440000u * static_cast<std::uint32_t>(RandomInt(0, 4)) +
-    0x00004400u * static_cast<std::uint32_t>(RandomInt(0, 4)) +
-    0x00000044u * static_cast<std::uint32_t>(RandomInt(0, 4));
+  const std::uint32_t color = RandomShipColor();
 
   Entity ent;
   ent.color = color;
@@ -85,7 +94,7 @@ static void OnInput(const void* data, std::size_t size) {
   std::uint16_t eid = kInvalidEntity;
   float thr = 0.f;
   float steer = 0.f;
-  DeserializeEntityInput(data, size, eid, thr, steer);
+  if (!DeserializeEntityInput(data, size, eid, thr, steer)) return;
 
   for (Entity& e : entities) {
     if (e.eid == eid) {

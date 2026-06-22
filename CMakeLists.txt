@@ -14,6 +14,8 @@ enable_testing()
 
 # comment if you want have a structure in build folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_COMMAND} -E make_directory \"${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\"
+${CMAKE_CXX_LINK_EXECUTABLE}")
 
 # Prevent the user from polluting the root directory with build files
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)

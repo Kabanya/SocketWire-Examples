@@ -12,14 +12,14 @@
 
 struct GameServerInfo {
   int port = 10888;
-  std::string host = "localhost";
+  std::string host = "127.0.0.1";
   bool sessionStarted = false;
 };
 
 static void SendText(socketwire_examples::ServerConnectionHub::Client& client,
                      const std::string& text) {
   const std::size_t bytes = text.size() + 1;
-  if (client.connection->SendReliable(0, text.c_str(), bytes)) {
+  if (client.connection->SendUnsequenced(0, text.c_str(), bytes)) {
     socketwire_examples::benchmark::RecordPayloadTx(bytes);
   }
 }
